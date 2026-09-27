@@ -113,6 +113,7 @@ https://macports-distfiles.mirrorservice.org/luajit/LuaJIT-2.0.5.tar.gz
 https://archive.debian.org/debian/pool/main/e/enca/enca_1.19.orig.tar.gz
 https://archive.debian.org/debian/pool/main/libp/libpciaccess/libpciaccess_0.14.orig.tar.gz
 https://dri.freedesktop.org/libdrm/libdrm-2.4.89.tar.bz2
+https://www.openssl.org/source/old/1.0.2/openssl-1.0.2d.tar.gz
 https://downloads.videolan.org/testing/contrib/dav1d/dav1d-0.7.1.tar.xz
 https://ffmpeg.org/releases/ffmpeg-4.3.tar.xz
 https://deb.debian.org/debian/pool/main/m/mpv/mpv_0.32.0.orig.tar.gz
