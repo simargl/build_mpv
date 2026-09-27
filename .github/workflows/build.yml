@@ -11,16 +11,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ------------------------------------------------------------
+      # ---------------------------------------------------------------
       # Checkout
-      # ------------------------------------------------------------
+      # ---------------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ------------------------------------------------------------
+      # ---------------------------------------------------------------
       # Download Slackware filesystem
-      # ------------------------------------------------------------
-      - name: Download Slackware filesystem
+      # ---------------------------------------------------------------
+      - name: Download fs-slackware.sb
         shell: bash
         run: |
           set -euxo pipefail
@@ -32,40 +32,34 @@ jobs:
           ls -lh fs-slackware.sb
           file fs-slackware.sb
 
-      # ------------------------------------------------------------
-      # Extract Slackware filesystem
-      # ------------------------------------------------------------
-      - name: Extract Slackware filesystem
+      # ---------------------------------------------------------------
+      # Build inside Slackware 14.2
+      # ---------------------------------------------------------------
+      - name: Build inside Slackware 14.2
         shell: bash
         run: |
           set -euxo pipefail
 
-          sudo rm -rf fs-root
-          sudo mkdir -p fs-root
+          echo "=================================================="
+          echo "Preparing Slackware filesystem"
+          echo "=================================================="
+
+          rm -rf fs-root
 
           sudo unsquashfs \
             -d fs-root \
             fs-slackware.sb
 
+          # IMPORTANT:
+          # Both directories must exist before mount --bind.
+          mkdir -p output
+
           sudo mkdir -p fs-root/github-workspace
           sudo mkdir -p fs-root/output
 
-          echo "Slackware filesystem extracted"
-
-          sudo ls -ld \
-            fs-root \
-            fs-root/usr \
-            fs-root/bin \
-            fs-root/github-workspace \
-            fs-root/output
-
-      # ------------------------------------------------------------
-      # Mount GitHub workspace into Slackware filesystem
-      # ------------------------------------------------------------
-      - name: Mount workspace
-        shell: bash
-        run: |
-          set -euxo pipefail
+          echo "=================================================="
+          echo "Mounting GitHub workspace"
+          echo "=================================================="
 
           sudo mount --bind \
             "$GITHUB_WORKSPACE" \
@@ -75,155 +69,109 @@ jobs:
             "$GITHUB_WORKSPACE/output" \
             "$GITHUB_WORKSPACE/fs-root/output"
 
-          mount | grep fs-root
+          cleanup() {
+            set +e
 
-      # ------------------------------------------------------------
-      # Build inside Slackware 14.2
-      # ------------------------------------------------------------
-      - name: Build mpv inside Slackware
-        shell: bash
-        run: |
-          set -euxo pipefail
+            sudo umount \
+              "$GITHUB_WORKSPACE/fs-root/output" \
+              2>/dev/null || true
 
-          sudo chroot \
-            "$GITHUB_WORKSPACE/fs-root" \
-            /bin/bash -euxo pipefail -c '
+            sudo umount \
+              "$GITHUB_WORKSPACE/fs-root/github-workspace" \
+              2>/dev/null || true
+          }
 
-              export HOME=/root
-              export LC_ALL=C
-              export LANG=C
+          trap cleanup EXIT
 
-              export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+          echo "=================================================="
+          echo "Entering Slackware 14.2"
+          echo "=================================================="
 
-              cd /github-workspace
+          sudo chroot fs-root /bin/bash -euxo pipefail -c '
+            export HOME=/root
+            export TERM=xterm
+            export DEBIAN_FRONTEND=noninteractive
 
-              echo "=================================================="
-              echo " Slackware version"
-              echo "=================================================="
+            export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 
-              cat /etc/slackware-version || true
+            echo "=================================================="
+            echo "Slackware version"
+            echo "=================================================="
 
-              echo
-              echo "=================================================="
-              echo " Kernel"
-              echo "=================================================="
+            cat /etc/slackware-version || true
 
-              uname -a
+            echo
+            uname -a
 
-              echo
-              echo "=================================================="
-              echo " Python"
-              echo "=================================================="
+            echo "=================================================="
+            echo "CPU"
+            echo "=================================================="
 
-              python3 --version
-              which python3
+            nproc || true
 
-              echo
-              echo "=================================================="
-              echo " Installing Ninja"
-              echo "=================================================="
+            echo "=================================================="
+            echo "Python"
+            echo "=================================================="
 
-              fetch it ninja
+            python3 --version
 
-              echo
-              echo "Ninja:"
-              which ninja
-              ninja --version
+            echo "=================================================="
+            echo "Installing Ninja"
+            echo "=================================================="
 
-              echo
-              echo "=================================================="
-              echo " Build tools"
-              echo "=================================================="
+            fetch it ninja
 
-              echo "gcc:"
-              gcc --version | head -n 1
+            echo "=================================================="
+            echo "Ninja"
+            echo "=================================================="
 
-              echo
-              echo "make:"
-              make --version | head -n 1
+            ninja --version
 
-              echo
-              echo "pkg-config:"
-              pkg-config --version
+            echo "=================================================="
+            echo "Build environment"
+            echo "=================================================="
 
-              echo
-              echo "python3:"
-              python3 --version
+            gcc --version | head -n 1
+            make --version | head -n 1
+            pkg-config --version
+            wget --version | head -n 1
+            tar --version | head -n 1
 
-              echo
-              echo "ninja:"
-              ninja --version
+            echo "=================================================="
+            echo "Building mpv"
+            echo "=================================================="
 
-              echo
-              echo "=================================================="
-              echo " Starting build_mpv.sh"
-              echo "=================================================="
+            cd /github-workspace
 
-              chmod +x ./build_mpv.sh
+            chmod +x ./build_mpv.sh
 
-              ./build_mpv.sh
+            ./build_mpv.sh
 
-              echo
-              echo "=================================================="
-              echo " Build completed"
-              echo "=================================================="
+            echo "=================================================="
+            echo "Build complete"
+            echo "=================================================="
 
-              echo
-              echo "mpv:"
-              /tmp/mpv-build/pkg/bin/mpv \
-                --version | head -n 10
+            test -f /tmp/mpv-build/mpv.sb
 
-              echo
-              echo "mpv binary:"
-              file /tmp/mpv-build/pkg/bin/mpv
+            ls -lh /tmp/mpv-build/mpv.sb
 
-              echo
-              echo "mpv dependencies:"
-              ldd /tmp/mpv-build/pkg/bin/mpv || true
+            echo "=================================================="
+            echo "Copying artifact"
+            echo "=================================================="
 
-              echo
-              echo "mpv.sb:"
-              ls -lh /tmp/mpv-build/mpv.sb
+            cp -v \
+              /tmp/mpv-build/mpv.sb \
+              /output/mpv.sb
 
-              file /tmp/mpv-build/mpv.sb
+            ls -lh /output/mpv.sb
+          '
 
-              echo
-              echo "=================================================="
-              echo " Copying artifact"
-              echo "=================================================="
-
-              mkdir -p /output
-
-              cp -v \
-                /tmp/mpv-build/mpv.sb \
-                /output/mpv.sb
-
-              ls -lh /output/mpv.sb
-            '
-
-      # ------------------------------------------------------------
-      # Unmount filesystem
-      # ------------------------------------------------------------
-      - name: Unmount Slackware filesystem
-        if: always()
-        shell: bash
-        run: |
-          set +e
-
-          sudo umount \
-            "$GITHUB_WORKSPACE/fs-root/output" \
-            2>/dev/null || true
-
-          sudo umount \
-            "$GITHUB_WORKSPACE/fs-root/github-workspace" \
-            2>/dev/null || true
-
-      # ------------------------------------------------------------
-      # Upload mpv bundle
-      # ------------------------------------------------------------
+      # ---------------------------------------------------------------
+      # Upload artifact
+      # ---------------------------------------------------------------
       - name: Upload mpv bundle
         uses: actions/upload-artifact@v4
         with:
-          name: mpv-static-slackware
+          name: mpv-static-slackware-14.2
           path: output/mpv.sb
           if-no-files-found: error
