@@ -281,8 +281,7 @@ if [ ! -f "$PKG/lib/libass.a" ]; then
     ./configure \
         --prefix="$PKG" \
         --disable-shared \
-        --enable-static \
-        --disable-require-system-font-provider
+        --enable-static
 
     make -j"$JOBS"
     make install
