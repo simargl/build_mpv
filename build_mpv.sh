@@ -262,8 +262,32 @@ fi
 [ -f "$PKG/lib/libsoxr.a" ] ||
     build_cmake libsoxr_0.1.2.orig.tar.xz "$BUILD/soxr-0.1.2-Source"
 
-[ -f "$PKG/lib/libass.a" ] ||
-    build_auto libass-0.13.0.tar.gz "$BUILD/libass-0.13.0"
+if [ ! -f "$PKG/lib/libass.a" ]; then
+    echo "==> Building libass 0.13.0"
+
+    rm -rf "$BUILD/libass-0.13.0"
+    tar -xf "$SRC/libass-0.13.0.tar.gz" -C "$BUILD"
+
+    cd "$BUILD/libass-0.13.0"
+
+    if [ ! -f configure ]; then
+        autoreconf -fiv
+    fi
+
+    CFLAGS="-O2 -fPIC" \
+    CXXFLAGS="-O2 -fPIC" \
+    ./configure \
+        --prefix="$PKG" \
+        --disable-shared \
+        --enable-static \
+        --disable-require-system-font-provider
+
+    make -j"$JOBS"
+    make install
+
+    cd "$SRC"
+fi
+
 
 # ----------------------------------------------------------------------
 # OpenJPEG
