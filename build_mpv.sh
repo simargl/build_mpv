@@ -159,9 +159,25 @@ fi
 # Video / audio libraries
 # ----------------------------------------------------------------------
 
-[ -f "$PKG/lib/libx264.a" ] ||
-    build_auto x264-snapshot-20180817-2245-stable.tar.bz2 \
-        "$BUILD/x264-snapshot-20180817-2245-stable"
+if [ ! -f "$PKG/lib/libx264.a" ]; then
+    echo "==> Building x264 with PIC"
+
+    rm -rf "$BUILD/x264-snapshot-20180817-2245-stable"
+    tar -xf "$SRC/x264-snapshot-20180817-2245-stable.tar.bz2" -C "$BUILD"
+
+    cd "$BUILD/x264-snapshot-20180817-2245-stable"
+
+    ./configure \
+        --prefix="$PKG" \
+        --disable-shared \
+        --enable-static \
+        --enable-pic
+
+    make -j"$JOBS"
+    make install
+
+    cd "$SRC"
+fi
 
 if [ ! -f "$PKG/lib/libx265.a" ]; then
     rm -rf "$BUILD/x265_2.8"
