@@ -530,25 +530,24 @@ if [ ! -x "$PKG/bin/mpv" ]; then
 
     if [ ! -f waf ]; then
         wget -q --show-progress \
-            https://waf.io/waf-2.0.20 -O waf \
-            -O waf
+            https://waf.io/waf-2.0.20 -O waf
         chmod 755 waf
     fi
 
     PKG_CONFIG_PATH="$PKG_CONFIG_PATH" \
     PATH="$PKG/bin:$PATH" \
-    ./waf configure \
+    python3 ./waf configure \
         --prefix="$PKG" \
         --enable-static-build \
         --disable-manpage-build
 
     PKG_CONFIG_PATH="$PKG_CONFIG_PATH" \
     PATH="$PKG/bin:$PATH" \
-    ./waf build -j"$JOBS"
+    python3 ./waf build -j"$JOBS"
 
     PKG_CONFIG_PATH="$PKG_CONFIG_PATH" \
     PATH="$PKG/bin:$PATH" \
-    ./waf install
+    python3 ./waf install
 
     cd "$SRC"
 fi
