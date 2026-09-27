@@ -65,6 +65,10 @@ jobs:
                 squashfs-tools \
                 perl \
                 zlib1g-dev \
+                libgl1-mesa-dev \
+                libegl1-mesa-dev \
+                libgbm-dev \
+                libgles2-mesa-dev \
                 texinfo
 
               echo "=================================================="
