@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   build:
-    name: Build mpv - Ubuntu 16.04
+    name: Build mpv - Ubuntu 18.04
     runs-on: ubuntu-latest
 
     timeout-minutes: 240
@@ -21,17 +21,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build mpv inside Ubuntu 16.04
+      - name: Build mpv inside Ubuntu 18.04
         shell: bash
         run: |
           set -e
 
-          docker pull ubuntu:16.04
+          docker pull ubuntu:18.04
 
           docker run --rm \
             -v "$PWD:/src" \
             -w /src \
-            ubuntu:16.04 \
+            ubuntu:18.04 \
             bash -euxo pipefail -c '
 
               echo
@@ -206,7 +206,7 @@ jobs:
       - name: Upload mpv bundle
         uses: actions/upload-artifact@v4
         with:
-          name: mpv-ubuntu-16.04-av1
+          name: mpv-ubuntu-18.04-av1
           path: mpv.sb
           if-no-files-found: error
           retention-days: 30
