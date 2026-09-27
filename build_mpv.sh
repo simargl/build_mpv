@@ -561,7 +561,7 @@ ROOTFS="$ROOT/squashfs-root"
 
 if [ ! -f "$SRC/yt-dlp" ]; then
     echo "==> Downloading yt-dlp"
-    wget -q --show-progress --retry-tries=5 \
+    wget -q --show-progress \
         https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
         -O "$SRC/yt-dlp"
     chmod 755 "$SRC/yt-dlp"
