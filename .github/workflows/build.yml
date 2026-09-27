@@ -82,6 +82,17 @@ jobs:
                 libegl1-mesa-dev \
                 libgbm-dev \
                 libgles2-mesa-dev \
+                libx11-dev \
+                libxext-dev \
+                libxinerama-dev \
+                libxrandr-dev \
+                libxss-dev \
+                libxv-dev \
+                libasound2-dev \
+                libpulse-dev \
+                libwayland-dev \
+                wayland-protocols \
+                libva-dev \
                 texinfo
 
               echo "=================================================="
