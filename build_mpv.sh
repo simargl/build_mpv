@@ -436,7 +436,8 @@ if [ ! -f "$PKG/lib/libdav1d.a" ]; then
         --default-library=static \
         -Denable_tools=false \
         -Denable_tests=false \
-        -Denable_examples=false
+        -Denable_examples=false \
+        -Denable_avx512=false
 
     meson compile -C build
     meson install -C build
@@ -445,6 +446,7 @@ if [ ! -f "$PKG/lib/libdav1d.a" ]; then
 
     test -f "$PKG/lib/libdav1d.a"
 fi
+
 
 # ----------------------------------------------------------------------
 # FFmpeg 4.3
