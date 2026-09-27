@@ -46,12 +46,18 @@ build_auto() {
     rm -rf "$dir"
     tar -xf "$SRC/$archive" -C "$BUILD"
     cd "$dir"
+
     [ -f configure ] || autoreconf -fiv
+
+    CFLAGS="${CFLAGS:-}" \
+    CXXFLAGS="${CXXFLAGS:-}" \
     ./configure $CONFIG
+
     make -j"$JOBS"
     make install
     cd "$SRC"
 }
+
 
 build_cmake() {
     local archive="$1" dir="$2"
@@ -195,22 +201,15 @@ fi
 if [ ! -f "$PKG/lib/libfdk-aac.a" ]; then
     echo "==> Building fdk-aac 0.1.4"
 
-    rm -rf "$BUILD/fdk-aac-0.1.4"
-    tar -xf "$SRC/fdk-aac_0.1.4.orig.tar.gz" -C "$BUILD"
+    export CFLAGS="-O2 -fPIC"
+    export CXXFLAGS="-O2 -fPIC -Wno-narrowing"
 
-    cd "$BUILD/fdk-aac-0.1.4"
+    build_auto \
+        fdk-aac_0.1.4.orig.tar.gz \
+        "$BUILD/fdk-aac-0.1.4"
 
-    ./configure \
-        --prefix="$PKG" \
-        --disable-shared \
-        --enable-static \
-        CFLAGS="-O2 -fPIC" \
-        CXXFLAGS="-O2 -fPIC -Wno-narrowing"
-
-    make -j"$JOBS"
-    make install
-
-    cd "$SRC"
+    unset CFLAGS
+    unset CXXFLAGS
 fi
 
 [ -f "$PKG/lib/libmp3lame.a" ] ||
