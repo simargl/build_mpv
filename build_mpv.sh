@@ -1,8 +1,10 @@
 #!/bin/bash
-set -e
-
+# 
+# Author: simargl <https://github.com/simargl>
+# License: GPL v3
 # Static mpv 0.32.0 + FFmpeg 4.3 + dav1d AV1 + yt-dlp
-# Intended for Ubuntu 16.04 / Xenial
+
+set -e
 
 ROOT=/tmp/mpv-build
 SRC=$ROOT/src
@@ -20,12 +22,22 @@ CONFIG="--prefix=$PKG --disable-shared --enable-static"
 CMAKE="cmake -DCMAKE_INSTALL_PREFIX=$PKG -DBUILD_SHARED_LIBS=OFF"
 
 download() {
-    local url="$1" file="$SRC/$(basename "$1")"
-    [ -f "$file" ] && return
+    local url="$1"
+    local file="$SRC/$(basename "$url")"
+
+    if [ -s "$file" ]; then
+        echo "==> Already have $(basename "$url")"
+        return 0
+    fi
+
     echo "==> Downloading $(basename "$url")"
-    wget -q --show-progress --retry-tries=5 --timeout=30 \
-        "$url" -O "$file"
-    test -s "$file"
+    wget -O "$file" "$url"
+
+    if [ ! -s "$file" ]; then
+        echo "ERROR: download failed: $url"
+        rm -f "$file"
+        exit 1
+    fi
 }
 
 build_auto() {
