@@ -11,164 +11,193 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # ---------------------------------------------------------------
-      # Checkout
-      # ---------------------------------------------------------------
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ---------------------------------------------------------------
-      # Download Slackware filesystem
-      # ---------------------------------------------------------------
-      - name: Download fs-slackware.sb
-        shell: bash
-        run: |
-          set -euxo pipefail
-
-          wget -q --show-progress \
-            "https://github.com/simargl/slik-linux/releases/download/slik-linux-0.1.0-284/fs-slackware.sb" \
-            -O fs-slackware.sb
-
-          ls -lh fs-slackware.sb
-          file fs-slackware.sb
-
-      # ---------------------------------------------------------------
-      # Build inside Slackware 14.2
-      # ---------------------------------------------------------------
       - name: Build inside Slackware 14.2
         shell: bash
         run: |
           set -euxo pipefail
 
-          echo "=================================================="
-          echo "Preparing Slackware filesystem"
-          echo "=================================================="
+          ROOT="$GITHUB_WORKSPACE/fs-root"
+          OUTPUT="$GITHUB_WORKSPACE/output"
 
-          rm -rf fs-root
-
-          sudo unsquashfs \
-            -d fs-root \
-            fs-slackware.sb
-
-          # IMPORTANT:
-          # Both directories must exist before mount --bind.
-          mkdir -p output
-
-          sudo mkdir -p fs-root/github-workspace
-          sudo mkdir -p fs-root/output
+          sudo rm -rf "$ROOT" "$OUTPUT"
+          sudo mkdir -p "$ROOT" "$OUTPUT"
 
           echo "=================================================="
-          echo "Mounting GitHub workspace"
+          echo " Downloading Slackware 14.2 root filesystem"
           echo "=================================================="
 
-          sudo mount --bind \
-            "$GITHUB_WORKSPACE" \
-            "$GITHUB_WORKSPACE/fs-root/github-workspace"
+          wget -q --show-progress \
+            https://github.com/simargl/slik-linux/releases/download/slik-linux-0.1.0-284/fs-slackware.sb \
+            -O "$GITHUB_WORKSPACE/fs-slackware.sb"
 
-          sudo mount --bind \
-            "$GITHUB_WORKSPACE/output" \
-            "$GITHUB_WORKSPACE/fs-root/output"
+          echo "=================================================="
+          echo " Extracting Slackware filesystem"
+          echo "=================================================="
+
+          # unsquashfs needs root because the filesystem contains
+          # /dev/null, /dev/random, etc. with device-node metadata.
+          sudo unsquashfs -d "$ROOT" "$GITHUB_WORKSPACE/fs-slackware.sb"
+
+          echo "=================================================="
+          echo " Preparing chroot"
+          echo "=================================================="
+
+          sudo mkdir -p \
+            "$ROOT/dev" \
+            "$ROOT/dev/pts" \
+            "$ROOT/proc" \
+            "$ROOT/sys" \
+            "$ROOT/run" \
+            "$ROOT/tmp" \
+            "$ROOT/src" \
+            "$ROOT/output"
+
+          sudo chmod 1777 "$ROOT/tmp"
+
+          # Copy the repository into the chroot.
+          sudo cp -a "$GITHUB_WORKSPACE/." "$ROOT/src/"
+
+          # The source tree may contain the old output directory.
+          sudo rm -rf "$ROOT/src/output"
+          sudo mkdir -p "$ROOT/output"
+
+          # Mount the host's virtual filesystems into the chroot.
+          sudo mount --rbind /dev "$ROOT/dev"
+          sudo mount --make-rslave "$ROOT/dev"
+
+          sudo mount -t proc proc "$ROOT/proc"
+
+          sudo mount --rbind /sys "$ROOT/sys"
+          sudo mount --make-rslave "$ROOT/sys"
+
+          sudo mount --rbind /run "$ROOT/run"
+          sudo mount --make-rslave "$ROOT/run"
 
           cleanup() {
             set +e
 
-            sudo umount \
-              "$GITHUB_WORKSPACE/fs-root/output" \
-              2>/dev/null || true
+            sudo umount -R "$ROOT/run" 2>/dev/null || true
+            sudo umount "$ROOT/proc" 2>/dev/null || true
+            sudo umount -R "$ROOT/sys" 2>/dev/null || true
+            sudo umount -R "$ROOT/dev" 2>/dev/null || true
 
-            sudo umount \
-              "$GITHUB_WORKSPACE/fs-root/github-workspace" \
-              2>/dev/null || true
+            sudo rm -rf "$ROOT"
           }
 
           trap cleanup EXIT
 
           echo "=================================================="
-          echo "Entering Slackware 14.2"
+          echo " Installing build dependencies"
           echo "=================================================="
 
-          sudo chroot fs-root /bin/bash -euxo pipefail -c '
+          sudo chroot "$ROOT" /bin/bash -euxo pipefail -c '
             export HOME=/root
-            export TERM=xterm
-            export DEBIAN_FRONTEND=noninteractive
-
             export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 
             echo "=================================================="
-            echo "Slackware version"
+            echo " Slackware version"
             echo "=================================================="
-
             cat /etc/slackware-version || true
 
             echo
-            uname -a
-
             echo "=================================================="
-            echo "CPU"
+            echo " Device sanity check"
             echo "=================================================="
 
-            nproc || true
+            ls -l /dev/null
+            ls -l /dev/random
+            ls -l /dev/urandom
 
-            echo "=================================================="
-            echo "Python"
-            echo "=================================================="
-
+            echo
+            echo "Python:"
             python3 --version
 
+            echo
             echo "=================================================="
-            echo "Installing Ninja"
+            echo " Installing Ninja"
             echo "=================================================="
 
-            fetch it ninja
-
-            echo "=================================================="
-            echo "Ninja"
-            echo "=================================================="
+            # Slackware/Salix fetch package.
+            # Do not rely on Ubuntu packages inside Slackware.
+            if ! command -v ninja >/dev/null 2>&1; then
+              fetch it ninja
+            fi
 
             ninja --version
 
+            echo
             echo "=================================================="
-            echo "Build environment"
-            echo "=================================================="
-
-            gcc --version | head -n 1
-            make --version | head -n 1
-            pkg-config --version
-            wget --version | head -n 1
-            tar --version | head -n 1
-
-            echo "=================================================="
-            echo "Building mpv"
+            echo " Building Meson 0.50.1"
             echo "=================================================="
 
-            cd /github-workspace
+            # Python 3.5.1 is too old for Meson >= 0.51.x.
+            # Meson 0.50.1 works with the Python 3.5 environment
+            # supplied by this Slackware filesystem.
+
+            MESON_VERSION=0.50.1
+            MESON_SRC=/tmp/meson-$MESON_VERSION
+
+            rm -rf "$MESON_SRC"
+
+            wget -q --show-progress \
+              "https://github.com/mesonbuild/meson/releases/download/$MESON_VERSION/meson-$MESON_VERSION.tar.gz" \
+              -O "/tmp/meson-$MESON_VERSION.tar.gz"
+
+            tar -xf "/tmp/meson-$MESON_VERSION.tar.gz" -C /tmp
+
+            cd "$MESON_SRC"
+
+            python3 setup.py install
+
+            cd /
+
+            echo
+            echo "Meson:"
+            meson --version
+
+            echo
+            echo "Ninja:"
+            ninja --version
+
+            echo
+            echo "Python:"
+            python3 --version
+
+            echo
+            echo "=================================================="
+            echo " Building mpv"
+            echo "=================================================="
+
+            cd /src
 
             chmod +x ./build_mpv.sh
 
             ./build_mpv.sh
 
+            echo
             echo "=================================================="
-            echo "Build complete"
+            echo " Copying artifact"
             echo "=================================================="
 
             test -f /tmp/mpv-build/mpv.sb
 
-            ls -lh /tmp/mpv-build/mpv.sb
-
-            echo "=================================================="
-            echo "Copying artifact"
-            echo "=================================================="
-
-            cp -v \
-              /tmp/mpv-build/mpv.sb \
-              /output/mpv.sb
+            cp -v /tmp/mpv-build/mpv.sb /output/mpv.sb
 
             ls -lh /output/mpv.sb
           '
 
-      # ---------------------------------------------------------------
-      # Upload artifact
-      # ---------------------------------------------------------------
+          echo "=================================================="
+          echo " Artifact"
+          echo "=================================================="
+
+          sudo chown -R "$(id -u):$(id -g)" "$OUTPUT"
+
+          ls -lh "$OUTPUT/mpv.sb"
+          file "$OUTPUT/mpv.sb"
+
       - name: Upload mpv bundle
         uses: actions/upload-artifact@v4
         with:
