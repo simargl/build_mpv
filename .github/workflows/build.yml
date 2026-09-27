@@ -64,6 +64,7 @@ jobs:
                 ninja-build \
                 squashfs-tools \
                 perl \
+                zlib1g-dev \
                 texinfo
 
               echo "=================================================="
