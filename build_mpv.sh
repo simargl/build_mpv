@@ -4,8 +4,8 @@
 # License: GPL v3
 # Static mpv 0.32.0 + FFmpeg 4.3 + dav1d AV1 + yt-dlp
 #
-# Designed to build inside Slackware 14.2.
-# Uses Meson 0.50.1 because Slackware 14.2 ships Python 3.5.1.
+# Designed for Slackware 14.2 / Python 3.5.x
+#
 
 set -e
 
@@ -34,6 +34,7 @@ download() {
     fi
 
     echo "==> Downloading $(basename "$url")"
+
     wget -O "$file" "$url"
 
     if [ ! -s "$file" ]; then
@@ -44,11 +45,13 @@ download() {
 }
 
 build_auto() {
-    local archive="$1" dir="$2"
+    local archive="$1"
+    local dir="$2"
 
     echo "==> Building $archive"
 
     rm -rf "$dir"
+
     tar -xf "$SRC/$archive" -C "$BUILD"
 
     cd "$dir"
@@ -66,11 +69,13 @@ build_auto() {
 }
 
 build_cmake() {
-    local archive="$1" dir="$2"
+    local archive="$1"
+    local dir="$2"
 
     echo "==> Building $archive"
 
     rm -rf "$dir"
+
     tar -xf "$SRC/$archive" -C "$BUILD"
 
     cd "$dir"
@@ -88,44 +93,6 @@ build_cmake() {
 }
 
 # ----------------------------------------------------------------------
-# Meson
-#
-# Slackware 14.2 has Python 3.5.1.
-#
-# Meson 0.53+ requires Python >= 3.5.2.
-# Meson 0.50.1 still supports Python 3.5.1.
-# ----------------------------------------------------------------------
-
-build_meson() {
-    local archive="$1"
-    local dir="$2"
-
-    echo "==> Building Meson 0.50.1"
-
-    rm -rf "$dir"
-
-    tar -xf "$SRC/$archive" -C "$BUILD"
-
-    cd "$dir"
-
-    python3 setup.py build
-
-    python3 setup.py install \
-        --prefix="$PKG" \
-        --install-lib="$PKG/lib/python3.5/site-packages" \
-        --install-scripts="$PKG/bin"
-
-    cd "$SRC"
-
-    test -x "$PKG/bin/meson"
-
-    echo
-    echo "==> Meson installed:"
-    "$PKG/bin/meson" --version
-    echo
-}
-
-# ----------------------------------------------------------------------
 # Sources
 # ----------------------------------------------------------------------
 
@@ -136,7 +103,6 @@ https://ijg.org/files/jpegsrc.v9c.tar.gz
 https://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz
 https://download.videolan.org/contrib/nasm/nasm-2.13.03.tar.gz
 https://archive.ubuntu.com/ubuntu/pool/main/c/cmake/cmake_2.8.12.2.orig.tar.gz
-https://github.com/mesonbuild/meson/releases/download/0.50.1/meson-0.50.1.tar.gz
 https://download.videolan.org/pub/x264/snapshots/x264-snapshot-20180817-2245-stable.tar.bz2
 https://get.videolan.org/x265/x265_2.8.tar.gz
 https://archive.debian.org/debian/pool/non-free/f/fdk-aac/fdk-aac_0.1.4.orig.tar.gz
@@ -169,13 +135,14 @@ https://github.com/openssl/openssl/releases/download/OpenSSL_1_0_2d/openssl-1.0.
 https://downloads.videolan.org/testing/contrib/dav1d/dav1d-0.7.1.tar.xz
 https://ffmpeg.org/releases/ffmpeg-4.3.tar.xz
 https://deb.debian.org/debian/pool/main/m/mpv/mpv_0.32.0.orig.tar.gz
+https://github.com/mesonbuild/meson/releases/download/0.50.1/meson-0.50.1.tar.gz
 "
 
 for url in $URLS; do
     download "$url"
 done
 
-# FreeType is needed by libass/FFmpeg.
+# FreeType
 download \
     "https://download.savannah.gnu.org/releases/freetype/freetype-2.10.4.tar.xz"
 
@@ -198,7 +165,6 @@ download \
 # ----------------------------------------------------------------------
 
 if [ ! -x "$PKG/bin/cmake" ]; then
-
     echo "==> Building CMake 2.8.12.2"
 
     rm -rf "$BUILD/cmake-2.8.12.2"
@@ -219,16 +185,49 @@ if [ ! -x "$PKG/bin/cmake" ]; then
 fi
 
 # ----------------------------------------------------------------------
-# Meson
+# Meson 0.50.1
+#
+# Slackware 14.2 ships Python 3.5.1.
+#
+# Meson 0.51+ requires Python 3.5.2+, while 0.50.1
+# works with the Python available on Slackware 14.2.
 # ----------------------------------------------------------------------
 
 if [ ! -x "$PKG/bin/meson" ]; then
+    echo "==> Installing Meson 0.50.1"
 
-    build_meson \
-        meson-0.50.1.tar.gz \
-        "$BUILD/meson-0.50.1"
+    rm -rf "$BUILD/meson-0.50.1"
 
+    tar -xf \
+        "$SRC/meson-0.50.1.tar.gz" \
+        -C "$BUILD"
+
+    cd "$BUILD/meson-0.50.1"
+
+    python3 setup.py install \
+        --prefix="$PKG"
+
+    # Depending on Python/setuptools configuration, setup.py
+    # may install the launcher somewhere below the prefix.
+    # Find it and make sure $PKG/bin/meson exists.
+
+    if [ ! -x "$PKG/bin/meson" ]; then
+        MESON_BIN="$(find "$PKG" \
+            -type f \
+            -name meson \
+            -perm -111 \
+            2>/dev/null | head -n 1)"
+
+        if [ -n "$MESON_BIN" ]; then
+            ln -sf "$MESON_BIN" "$PKG/bin/meson"
+        fi
+    fi
+
+    cd "$SRC"
 fi
+
+echo "==> Meson version:"
+"$PKG/bin/meson" --version
 
 # ----------------------------------------------------------------------
 # Basic libraries
@@ -255,11 +254,10 @@ fi
         "$BUILD/freetype-2.10.4"
 
 # ----------------------------------------------------------------------
-# Video / audio libraries
+# x264
 # ----------------------------------------------------------------------
 
 if [ ! -f "$PKG/lib/libx264.a" ]; then
-
     echo "==> Building x264 with PIC"
 
     rm -rf \
@@ -269,8 +267,7 @@ if [ ! -f "$PKG/lib/libx264.a" ]; then
         "$SRC/x264-snapshot-20180817-2245-stable.tar.bz2" \
         -C "$BUILD"
 
-    cd \
-        "$BUILD/x264-snapshot-20180817-2245-stable"
+    cd "$BUILD/x264-snapshot-20180817-2245-stable"
 
     ./configure \
         --prefix="$PKG" \
@@ -284,8 +281,11 @@ if [ ! -f "$PKG/lib/libx264.a" ]; then
     cd "$SRC"
 fi
 
-if [ ! -f "$PKG/lib/libx265.a" ]; then
+# ----------------------------------------------------------------------
+# x265
+# ----------------------------------------------------------------------
 
+if [ ! -f "$PKG/lib/libx265.a" ]; then
     rm -rf "$BUILD/x265_2.8"
 
     tar -xf \
@@ -308,8 +308,11 @@ if [ ! -f "$PKG/lib/libx265.a" ]; then
     cd "$SRC"
 fi
 
-if [ ! -f "$PKG/lib/libfdk-aac.a" ]; then
+# ----------------------------------------------------------------------
+# fdk-aac
+# ----------------------------------------------------------------------
 
+if [ ! -f "$PKG/lib/libfdk-aac.a" ]; then
     echo "==> Building fdk-aac 0.1.4"
 
     export CFLAGS="-O2 -fPIC"
@@ -323,6 +326,10 @@ if [ ! -f "$PKG/lib/libfdk-aac.a" ]; then
     unset CXXFLAGS
 fi
 
+# ----------------------------------------------------------------------
+# Audio/video libraries
+# ----------------------------------------------------------------------
+
 [ -f "$PKG/lib/libmp3lame.a" ] ||
     build_auto \
         lame_3.100.orig.tar.gz \
@@ -333,8 +340,11 @@ fi
         opus-1.2.1.tar.gz \
         "$BUILD/opus-1.2.1"
 
-if [ ! -f "$PKG/lib/libvpx.a" ]; then
+# ----------------------------------------------------------------------
+# libvpx
+# ----------------------------------------------------------------------
 
+if [ ! -f "$PKG/lib/libvpx.a" ]; then
     rm -rf "$BUILD/libvpx-1.4.0"
 
     tar -xf \
@@ -356,8 +366,11 @@ if [ ! -f "$PKG/lib/libvpx.a" ]; then
     cd "$SRC"
 fi
 
-[ -f "$PKG/lib/libvorbis.a" ] || {
+# ----------------------------------------------------------------------
+# Vorbis
+# ----------------------------------------------------------------------
 
+[ -f "$PKG/lib/libvorbis.a" ] || {
     build_auto \
         libogg-1.3.3.tar.gz \
         "$BUILD/libogg-1.3.3"
@@ -367,8 +380,14 @@ fi
         "$BUILD/libvorbis-1.3.6"
 }
 
-if [ ! -f "$PKG/lib/libtheora.a" ]; then
+# ----------------------------------------------------------------------
+# Theora
+#
+# Disable examples so player_example is not built.
+# The example requires libvga on Slackware 14.2.
+# ----------------------------------------------------------------------
 
+if [ ! -f "$PKG/lib/libtheora.a" ]; then
     echo "==> Building libtheora 1.1.1"
 
     rm -rf "$BUILD/libtheora-1.1.1"
@@ -430,8 +449,11 @@ fi
         libsoxr_0.1.2.orig.tar.xz \
         "$BUILD/soxr-0.1.2-Source"
 
-if [ ! -f "$PKG/lib/libass.a" ]; then
+# ----------------------------------------------------------------------
+# libass
+# ----------------------------------------------------------------------
 
+if [ ! -f "$PKG/lib/libass.a" ]; then
     echo "==> Building libass 0.13.0"
 
     rm -rf "$BUILD/libass-0.13.0"
@@ -465,7 +487,6 @@ fi
 # ----------------------------------------------------------------------
 
 if [ ! -f "$PKG/lib/libopenjp2.a" ]; then
-
     rm -rf "$BUILD/openjpeg-2.1.2"
 
     tar -xf \
@@ -497,7 +518,6 @@ fi
 # ----------------------------------------------------------------------
 
 if [ ! -f "$PKG/lib/libcdio.a" ]; then
-
     build_auto \
         libcddb-1.3.2.tar.bz2 \
         "$BUILD/libcddb-1.3.2"
@@ -512,7 +532,6 @@ if [ ! -f "$PKG/lib/libcdio.a" ]; then
 fi
 
 if [ ! -f "$PKG/lib/libdvdnav.a" ]; then
-
     build_auto \
         libdvdcss-1.4.2.tar.bz2 \
         "$BUILD/libdvdcss-1.4.2"
@@ -531,7 +550,6 @@ fi
 # ----------------------------------------------------------------------
 
 if [ ! -f "$PKG/lib/libluajit-5.1.a" ]; then
-
     rm -rf "$BUILD/LuaJIT-2.0.5"
 
     tar -xf \
@@ -551,7 +569,6 @@ fi
 # ----------------------------------------------------------------------
 
 if [ ! -f "$PKG/lib/libpciaccess.a" ]; then
-
     echo "==> Building libpciaccess 0.14"
 
     rm -rf "$BUILD/libpciaccess-0.14"
@@ -579,7 +596,7 @@ if [ ! -f "$PKG/lib/libpciaccess.a" ]; then
 fi
 
 # ----------------------------------------------------------------------
-# ENCA / libdrm
+# ENCA
 # ----------------------------------------------------------------------
 
 [ -f "$PKG/lib/libenca.a" ] ||
@@ -587,8 +604,11 @@ fi
         enca_1.19.orig.tar.gz \
         "$BUILD/enca-1.19"
 
-if [ ! -f "$PKG/lib/libdrm.a" ]; then
+# ----------------------------------------------------------------------
+# libdrm
+# ----------------------------------------------------------------------
 
+if [ ! -f "$PKG/lib/libdrm.a" ]; then
     echo "==> Building libdrm 2.4.89"
 
     rm -rf "$BUILD/libdrm-2.4.89"
@@ -620,7 +640,6 @@ fi
 # ----------------------------------------------------------------------
 
 if [ ! -f "$PKG/lib/libssl.a" ]; then
-
     rm -rf "$BUILD/openssl-1.0.2d"
 
     tar -xf \
@@ -646,7 +665,6 @@ fi
 # ----------------------------------------------------------------------
 
 if [ ! -f "$PKG/lib/libdav1d.a" ]; then
-
     echo "==> Building dav1d 0.7.1"
 
     rm -rf "$BUILD/dav1d-0.7.1"
@@ -656,9 +674,6 @@ if [ ! -f "$PKG/lib/libdav1d.a" ]; then
         -C "$BUILD"
 
     cd "$BUILD/dav1d-0.7.1"
-
-    echo "==> Using Meson:"
-    "$PKG/bin/meson" --version
 
     "$PKG/bin/meson" setup build \
         --prefix="$PKG" \
@@ -670,6 +685,7 @@ if [ ! -f "$PKG/lib/libdav1d.a" ]; then
         -Denable_avx512=false
 
     "$PKG/bin/meson" compile -C build
+
     "$PKG/bin/meson" install -C build
 
     cd "$SRC"
@@ -682,7 +698,6 @@ fi
 # ----------------------------------------------------------------------
 
 if [ ! -f "$PKG/lib/libavformat.a" ]; then
-
     echo "==> Building FFmpeg 4.3"
 
     rm -rf "$BUILD/ffmpeg-4.3"
@@ -757,7 +772,6 @@ find "$PKG/lib" \
 # ----------------------------------------------------------------------
 
 if [ ! -x "$PKG/bin/mpv" ]; then
-
     echo "==> Building mpv 0.32.0"
 
     rm -rf "$BUILD/mpv-0.32.0"
@@ -769,7 +783,6 @@ if [ ! -x "$PKG/bin/mpv" ]; then
     cd "$BUILD/mpv-0.32.0"
 
     if [ ! -f waf ]; then
-
         wget -q --show-progress \
             https://waf.io/waf-2.0.20 \
             -O waf
@@ -801,10 +814,7 @@ test -x "$PKG/bin/mpv"
 # yt-dlp
 # ----------------------------------------------------------------------
 
-ROOTFS="$ROOT/squashfs-root"
-
 if [ ! -f "$SRC/yt-dlp" ]; then
-
     echo "==> Downloading yt-dlp"
 
     wget -q --show-progress \
@@ -817,6 +827,8 @@ fi
 # ----------------------------------------------------------------------
 # AppImage-style squashfs bundle
 # ----------------------------------------------------------------------
+
+ROOTFS="$ROOT/squashfs-root"
 
 rm -rf "$ROOTFS"
 
@@ -837,7 +849,6 @@ strip \
     || true
 
 if [ -f "$PKG/share/applications/mpv.desktop" ]; then
-
     cp \
         "$PKG/share/applications/mpv.desktop" \
         "$ROOTFS/usr/share/applications/mpv.desktop"
@@ -855,6 +866,9 @@ echo "=================================================="
 echo " Build information"
 echo "=================================================="
 
+echo "Slackware:"
+cat /etc/slackware-version || true
+
 echo
 echo "Python:"
 python3 --version
@@ -865,12 +879,15 @@ echo "Meson:"
 
 echo
 echo "Ninja:"
-ninja --version || true
+ninja --version
 
 echo
 echo "mpv:"
+
 "$ROOTFS/usr/bin/mpv" \
-    --version | head -n 5 || true
+    --version \
+    | head -n 5 \
+    || true
 
 echo
 echo "Static libraries:"
@@ -882,7 +899,7 @@ ls -lh \
     "$PKG/lib/libavutil.a"
 
 # ----------------------------------------------------------------------
-# Create mpv.sb
+# Create squashfs
 # ----------------------------------------------------------------------
 
 echo
