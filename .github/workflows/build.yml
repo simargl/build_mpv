@@ -14,18 +14,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Build inside Ubuntu 18.04
+      - name: Build inside Ubuntu 16.04
         shell: bash
         run: |
           set -eux
 
-          docker pull ubuntu:18.04
+          docker pull ubuntu:16.04
 
           docker run --rm \
             -v "$GITHUB_WORKSPACE:/src" \
             -v "$GITHUB_WORKSPACE/output:/output" \
             -w /src \
-            ubuntu:18.04 \
+            ubuntu:16.04 \
             bash -euxo pipefail -c '
               export DEBIAN_FRONTEND=noninteractive
 
