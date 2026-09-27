@@ -239,9 +239,29 @@ fi
     build_auto libogg-1.3.3.tar.gz "$BUILD/libogg-1.3.3"
     build_auto libvorbis-1.3.6.tar.gz "$BUILD/libvorbis-1.3.6"
 }
+if [ ! -f "$PKG/lib/libtheora.a" ]; then
+    echo "==> Building libtheora 1.1.1"
 
-[ -f "$PKG/lib/libtheora.a" ] ||
-    build_auto libtheora-1.1.1.tar.bz2 "$BUILD/libtheora-1.1.1"
+    rm -rf "$BUILD/libtheora-1.1.1"
+    tar -xf "$SRC/libtheora-1.1.1.tar.bz2" -C "$BUILD"
+
+    cd "$BUILD/libtheora-1.1.1"
+
+    if [ ! -f configure ]; then
+        autoreconf -fiv
+    fi
+
+    ./configure \
+        --prefix="$PKG" \
+        --disable-shared \
+        --enable-static \
+        --disable-examples
+
+    make -j"$JOBS"
+    make install
+
+    cd "$SRC"
+fi
 
 [ -f "$PKG/lib/libFLAC.a" ] ||
     build_auto flac-1.3.2.tar.xz "$BUILD/flac-1.3.2"
