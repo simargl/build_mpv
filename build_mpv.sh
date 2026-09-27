@@ -530,7 +530,7 @@ if [ ! -x "$PKG/bin/mpv" ]; then
 
     if [ ! -f waf ]; then
         wget -q --show-progress \
-            https://www.freehackers.org/~tnagy/release/waf-2.0.20 \
+            https://waf.io/waf-2.0.20 -O waf \
             -O waf
         chmod 755 waf
     fi
