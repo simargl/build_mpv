@@ -1,718 +1,369 @@
 #!/bin/bash
-#
-# Build static mpv 0.32.0 + FFmpeg 4.3
-# with AV1 playback through dav1d.
-#
-# Creates:
-#   /tmp/mpv-build/mpv.sb
-#
-# Also bundles:
-#   mpv
-#   yt-dlp
-#
-# Original author: simargl
-# License: GPL v3
-#
-
 set -e
 
-###############################################################################
-# VARIABLES
-###############################################################################
+# Static mpv 0.32.0 + FFmpeg 4.3 + dav1d AV1 + yt-dlp
+# Intended for Ubuntu 16.04 / Xenial
 
-HOMEDIR="${HOMEDIR:-/tmp/mpv-build}"
-SRCDIR="$HOMEDIR/src"
-PKGDIR="$HOMEDIR/pkg"
-BUILDDIR="$HOMEDIR/build"
+ROOT=/tmp/mpv-build
+SRC=$ROOT/src
+PKG=$ROOT/pkg
+BUILD=$ROOT/build
+JOBS=${JOBS:-$(nproc)}
 
-CONFIGURE_ARGS="\
---prefix=$PKGDIR \
---disable-shared \
---enable-static \
---disable-examples \
---disable-unit-tests"
+mkdir -p "$SRC" "$PKG" "$BUILD"
 
-CMAKE_ARGS="\
--DCMAKE_INSTALL_PREFIX=$PKGDIR \
--DCMAKE_INSTALL_LIBDIR=lib \
--DBUILD_SHARED_LIBS=OFF"
+export PATH="$PKG/bin:$PATH"
+export PKG_CONFIG_PATH="$PKG/lib/pkgconfig"
+export LD_LIBRARY_PATH="$PKG/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 
-export PKG_CONFIG_PATH="$PKGDIR/lib/pkgconfig"
-export PATH="$PKGDIR/bin:$PATH"
-export LD_LIBRARY_PATH="$PKGDIR/lib:${LD_LIBRARY_PATH:-}"
+CONFIG="--prefix=$PKG --disable-shared --enable-static"
+CMAKE="cmake -DCMAKE_INSTALL_PREFIX=$PKG -DBUILD_SHARED_LIBS=OFF"
 
-###############################################################################
-# SOURCE ARCHIVES
-###############################################################################
-
-SOURCESURL="\
-http://deb.debian.org/debian/pool/main/e/expat/expat_2.1.0.orig.tar.gz \
-http://deb.debian.org/debian/pool/main/libp/libpng/libpng_1.2.50.orig.tar.xz \
-http://ijg.org/files/jpegsrc.v9c.tar.gz \
-http://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz \
-https://download.videolan.org/contrib/nasm/nasm-2.13.03.tar.gz \
-http://archive.ubuntu.com/ubuntu/pool/main/c/cmake/cmake_2.8.12.2.orig.tar.gz \
-http://download.videolan.org/pub/x264/snapshots/x264-snapshot-20180817-2245-stable.tar.bz2 \
-http://ftp.videolan.org/pub/videolan/x265/x265_2.8.tar.gz \
-http://deb.debian.org/debian/pool/non-free/f/fdk-aac/fdk-aac_0.1.4.orig.tar.gz \
-http://deb.debian.org/debian/pool/main/l/lame/lame_3.100.orig.tar.gz \
-http://ftp.osuosl.org/pub/xiph/releases/opus/opus-1.2.1.tar.gz \
-https://download.videolan.org/contrib/vpx/libvpx-1.4.0.tar.bz2 \
-http://cdn-fastly.deb.debian.org/debian/pool/main/f/fribidi/fribidi_1.0.5.orig.tar.bz2 \
-http://download.videolan.org/contrib/ass/libass-0.13.0.tar.gz \
-http://ftp.osuosl.org/pub/xiph/releases/ogg/libogg-1.3.3.tar.gz \
-http://ftp.osuosl.org/pub/xiph/releases/vorbis/libvorbis-1.3.6.tar.gz \
-http://ftp.osuosl.org/pub/xiph/releases/theora/libtheora-1.1.1.tar.bz2 \
-http://cdn-fastly.deb.debian.org/debian/pool/main/libs/libsoxr/libsoxr_0.1.2.orig.tar.xz \
-http://ftp.osuosl.org/pub/xiph/releases/flac/flac-1.3.2.tar.xz \
-http://ftp.osuosl.org/pub/xiph/releases/speex/speex-1.2.0.tar.gz \
-https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/openjpeg2/2.1.2-1.1+deb9u2build0.1/openjpeg2_2.1.2.orig.tar.gz \
-http://cdn-fastly.deb.debian.org/debian/pool/main/o/opencore-amr/opencore-amr_0.1.3.orig.tar.gz \
-http://www.wavpack.com/wavpack-5.1.0.tar.bz2 \
-http://archive.ubuntu.com/ubuntu/pool/universe/v/vo-aacenc/vo-aacenc_0.1.3.orig.tar.gz \
-http://prdownloads.sourceforge.net/libcddb/libcddb-1.3.2.tar.bz2 \
-http://ftp.gnu.org/gnu/libcdio/libcdio-2.0.0.tar.bz2 \
-http://ftp.gnu.org/gnu/libcdio/libcdio-paranoia-10.2+0.94+2.tar.gz \
-http://download.videolan.org/pub/videolan/libdvdcss/1.4.2/libdvdcss-1.4.2.tar.bz2 \
-http://download.videolan.org/pub/videolan/libdvdread/6.0.0/libdvdread-6.0.0.tar.bz2 \
-http://download.videolan.org/pub/videolan/libdvdnav/6.0.0/libdvdnav-6.0.0.tar.bz2 \
-http://luajit.org/download/LuaJIT-2.0.5.tar.gz \
-http://ftp.debian.org/debian/pool/main/e/enca/enca_1.19.orig.tar.gz \
-https://dri.freedesktop.org/libdrm/libdrm-2.4.89.tar.bz2 \
-https://downloads.videolan.org/pub/videolan/dav1d/0.7.1/dav1d-0.7.1.tar.xz \
-https://ffmpeg.org/releases/ffmpeg-4.3.tar.xz \
-http://deb.debian.org/debian/pool/main/m/mpv/mpv_0.32.0.orig.tar.gz"
-
-###############################################################################
-# PREPARE
-###############################################################################
-
-mkdir -p \
-    "$SRCDIR" \
-    "$PKGDIR" \
-    "$BUILDDIR"
-
-###############################################################################
-# DOWNLOAD
-###############################################################################
-
-download_file()
-{
-    URL="$1"
-    FILE="$2"
-
-    if [ -s "$FILE" ]; then
-        echo "Already downloaded: $(basename "$FILE")"
-        return
-    fi
-
-    echo
-    echo "Downloading:"
-    echo "  $URL"
-
-    wget \
-        --no-check-certificate \
-        --continue \
-        --show-progress \
-        -O "$FILE" \
-        "$URL"
-
-    if [ ! -s "$FILE" ]; then
-        echo "ERROR: download failed:"
-        echo "$URL"
-        exit 1
-    fi
+download() {
+    local url="$1" file="$SRC/$(basename "$1")"
+    [ -f "$file" ] && return
+    echo "==> Downloading $(basename "$url")"
+    wget -q --show-progress --retry-tries=5 --timeout=30 \
+        "$url" -O "$file"
+    test -s "$file"
 }
 
-cd "$SRCDIR"
+build_auto() {
+    local archive="$1" dir="$2"
+    echo "==> Building $archive"
+    rm -rf "$dir"
+    tar -xf "$SRC/$archive" -C "$BUILD"
+    cd "$dir"
+    [ -f configure ] || autoreconf -fiv
+    ./configure $CONFIG
+    make -j"$JOBS"
+    make install
+    cd "$SRC"
+}
 
-for URL in $SOURCESURL; do
-    FILE="$SRCDIR/$(basename "$URL")"
-    download_file "$URL" "$FILE"
+build_cmake() {
+    local archive="$1" dir="$2"
+    echo "==> Building $archive"
+    rm -rf "$dir"
+    tar -xf "$SRC/$archive" -C "$BUILD"
+    cd "$dir"
+    rm -rf build
+    mkdir build
+    cd build
+    $CMAKE ..
+    make -j"$JOBS"
+    make install
+    cd "$SRC"
+}
+
+# ----------------------------------------------------------------------
+# Sources
+# ----------------------------------------------------------------------
+
+URLS="
+https://archive.debian.org/debian/pool/main/e/expat/expat_2.1.0.orig.tar.gz
+https://archive.debian.org/debian/pool/main/libp/libpng/libpng_1.2.50.orig.tar.xz
+https://ijg.org/files/jpegsrc.v9c.tar.gz
+https://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz
+https://download.videolan.org/contrib/nasm/nasm-2.13.03.tar.gz
+https://archive.ubuntu.com/ubuntu/pool/main/c/cmake/cmake_2.8.12.2.orig.tar.gz
+https://download.videolan.org/pub/x264/snapshots/x264-snapshot-20180817-2245-stable.tar.bz2
+https://get.videolan.org/x265/x265_2.8.tar.gz
+https://archive.debian.org/debian/pool/non-free/f/fdk-aac/fdk-aac_0.1.4.orig.tar.gz
+https://deb.debian.org/debian/pool/main/l/lame/lame_3.100.orig.tar.gz
+https://ftp.osuosl.org/pub/xiph/releases/opus/opus-1.2.1.tar.gz
+https://download.videolan.org/contrib/vpx/libvpx-1.4.0.tar.bz2
+https://archive.debian.org/debian/pool/main/f/fribidi/fribidi_1.0.5.orig.tar.bz2
+https://download.videolan.org/contrib/ass/libass-0.13.0.tar.gz
+https://ftp.osuosl.org/pub/xiph/releases/ogg/libogg-1.3.3.tar.gz
+https://ftp.osuosl.org/pub/xiph/releases/vorbis/libvorbis-1.3.6.tar.gz
+https://ftp.osuosl.org/pub/xiph/releases/theora/libtheora-1.1.1.tar.bz2
+https://archive.debian.org/debian/pool/main/libs/libsoxr/libsoxr_0.1.2.orig.tar.xz
+https://ftp.osuosl.org/pub/xiph/releases/flac/flac-1.3.2.tar.xz
+https://ftp.osuosl.org/pub/xiph/releases/speex/speex-1.2.0.tar.gz
+https://launchpad.net/ubuntu/+archive/primary/+sourcefiles/openjpeg2/2.1.2-1.1+deb9u2build0.1/openjpeg2_2.1.2.orig.tar.gz
+https://archive.debian.org/debian/pool/main/o/opencore-amr/opencore-amr_0.1.3.orig.tar.gz
+https://www.wavpack.com/wavpack-5.1.0.tar.bz2
+https://archive.ubuntu.com/ubuntu/pool/universe/v/vo-aacenc/vo-aacenc_0.1.3.orig.tar.gz
+https://downloads.sourceforge.net/libcddb/libcddb-1.3.2.tar.bz2
+https://ftp.gnu.org/gnu/libcdio/libcdio-2.0.0.tar.bz2
+https://ftp.gnu.org/gnu/libcdio/libcdio-paranoia-10.2+0.94+2.tar.gz
+https://download.videolan.org/pub/videolan/libdvdcss/1.4.2/libdvdcss-1.4.2.tar.bz2
+https://download.videolan.org/pub/videolan/libdvdread/6.0.0/libdvdread-6.0.0.tar.bz2
+https://download.videolan.org/pub/videolan/libdvdnav/6.0.0/libdvdnav-6.0.0.tar.bz2
+https://downloads.sourceforge.net/luajit/LuaJIT-2.0.5.tar.gz
+https://archive.debian.org/debian/pool/main/e/enca/enca_1.19.orig.tar.gz
+https://dri.freedesktop.org/libdrm/libdrm-2.4.89.tar.bz2
+https://downloads.videolan.org/testing/contrib/dav1d/dav1d-0.7.1.tar.xz
+https://ffmpeg.org/releases/ffmpeg-4.3.tar.xz
+https://deb.debian.org/debian/pool/main/m/mpv/mpv_0.32.0.orig.tar.gz
+"
+
+for url in $URLS; do
+    download "$url"
 done
 
-###############################################################################
-# GENERIC AUTOTOOLS BUILD
-###############################################################################
+# FreeType is needed by libass/FFmpeg.
+# Download separately because it was missing from the original script.
+download "https://download.savannah.gnu.org/releases/freetype/freetype-2.10.4.tar.xz"
 
-compile_autoconf()
-{
-    ARCHIVE="$1"
-    SOURCE_DIR="$2"
+# ----------------------------------------------------------------------
+# Build tools
+# ----------------------------------------------------------------------
 
-    echo
-    echo "=================================================="
-    echo "Compiling $ARCHIVE"
-    echo "=================================================="
+[ -x "$PKG/bin/yasm" ] ||
+    build_auto yasm-1.3.0.tar.gz "$BUILD/yasm-1.3.0"
 
-    rm -rf "$SOURCE_DIR"
+[ -x "$PKG/bin/nasm" ] ||
+    build_auto nasm-2.13.03.tar.gz "$BUILD/nasm-2.13.03"
 
-    tar -xf "$SRCDIR/$ARCHIVE" -C "$BUILDDIR"
-
-    cd "$SOURCE_DIR"
-
-    if [ ! -f configure ]; then
-        autoreconf -vfi
-    fi
-
-    ./configure $CONFIGURE_ARGS
-
-    make -j"$(nproc)"
+if [ ! -x "$PKG/bin/cmake" ]; then
+    rm -rf "$BUILD/cmake-2.8.12.2"
+    tar -xf "$SRC/cmake_2.8.12.2.orig.tar.gz" -C "$BUILD"
+    cd "$BUILD/cmake-2.8.12.2"
+    ./bootstrap --prefix="$PKG"
+    make -j"$JOBS"
     make install
+    cd "$SRC"
+fi
 
-    cd "$SRCDIR"
-}
+# ----------------------------------------------------------------------
+# Basic libraries
+# ----------------------------------------------------------------------
 
-###############################################################################
-# GENERIC CMAKE BUILD
-###############################################################################
+[ -f "$PKG/lib/libexpat.a" ] ||
+    build_auto expat_2.1.0.orig.tar.gz "$BUILD/expat-2.1.0"
 
-compile_cmake()
-{
-    ARCHIVE="$1"
-    SOURCE_DIR="$2"
+[ -f "$PKG/lib/libjpeg.a" ] ||
+    build_auto jpegsrc.v9c.tar.gz "$BUILD/jpeg-9c"
 
-    echo
-    echo "=================================================="
-    echo "Compiling $ARCHIVE"
-    echo "=================================================="
+[ -f "$PKG/lib/libpng.a" ] ||
+    build_auto libpng_1.2.50.orig.tar.xz "$BUILD/libpng-1.2.50"
 
-    rm -rf "$SOURCE_DIR"
+[ -f "$PKG/lib/libfreetype.a" ] ||
+    build_auto freetype-2.10.4.tar.xz "$BUILD/freetype-2.10.4"
 
-    tar -xf "$SRCDIR/$ARCHIVE" -C "$BUILDDIR"
+# ----------------------------------------------------------------------
+# Video / audio libraries
+# ----------------------------------------------------------------------
 
-    cd "$SOURCE_DIR"
+[ -f "$PKG/lib/libx264.a" ] ||
+    build_auto x264-snapshot-20180817-2245-stable.tar.bz2 \
+        "$BUILD/x264-snapshot-20180817-2245-stable"
 
+if [ ! -f "$PKG/lib/libx265.a" ]; then
+    rm -rf "$BUILD/x265_2.8"
+    tar -xf "$SRC/x265_2.8.tar.gz" -C "$BUILD"
+    cd "$BUILD/x265_2.8/source"
     rm -rf build
     mkdir build
     cd build
-
-    cmake .. $CMAKE_ARGS
-
-    make -j"$(nproc)"
+    $CMAKE .. -DENABLE_SHARED=OFF -DENABLE_CLI=OFF
+    make -j"$JOBS"
     make install
-
-    cd "$SRCDIR"
-}
-
-###############################################################################
-# BASIC LIBRARIES
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libexpat.a" ]; then
-    compile_autoconf \
-        expat_2.1.0.orig.tar.gz \
-        "$BUILDDIR/expat-2.1.0"
+    cd "$SRC"
 fi
 
-if [ ! -f "$PKGDIR/lib/libjpeg.a" ]; then
+[ -f "$PKG/lib/libfdk-aac.a" ] ||
+    build_auto fdk-aac_0.1.4.orig.tar.gz "$BUILD/fdk-aac-0.1.4"
 
-    rm -rf "$BUILDDIR/jpeg-9c"
-    tar -xf "$SRCDIR/jpegsrc.v9c.tar.gz" -C "$BUILDDIR"
+[ -f "$PKG/lib/libmp3lame.a" ] ||
+    build_auto lame_3.100.orig.tar.gz "$BUILD/lame-3.100"
 
-    cd "$BUILDDIR/jpeg-9c"
+[ -f "$PKG/lib/libopus.a" ] ||
+    build_auto opus-1.2.1.tar.gz "$BUILD/opus-1.2.1"
 
-    ./configure $CONFIGURE_ARGS
-    make -j"$(nproc)"
-    make install
-
-    cd "$SRCDIR"
-fi
-
-if [ ! -f "$PKGDIR/lib/libpng.a" ]; then
-    compile_autoconf \
-        libpng_1.2.50.orig.tar.xz \
-        "$BUILDDIR/libpng-1.2.50"
-fi
-
-###############################################################################
-# YASM
-###############################################################################
-
-if [ ! -f "$PKGDIR/bin/yasm" ]; then
-    compile_autoconf \
-        yasm-1.3.0.tar.gz \
-        "$BUILDDIR/yasm-1.3.0"
-fi
-
-###############################################################################
-# NASM
-###############################################################################
-
-if [ ! -f "$PKGDIR/bin/nasm" ]; then
-    compile_autoconf \
-        nasm-2.13.03.tar.gz \
-        "$BUILDDIR/nasm-2.13.03"
-fi
-
-###############################################################################
-# CMAKE
-###############################################################################
-
-if [ ! -x "$PKGDIR/bin/cmake" ]; then
-
-    echo
-    echo "=================================================="
-    echo "Compiling CMake 2.8.12.2"
-    echo "=================================================="
-
-    rm -rf "$BUILDDIR/cmake-2.8.12.2"
-
-    tar -xf "$SRCDIR/cmake_2.8.12.2.orig.tar.gz" \
-        -C "$BUILDDIR"
-
-    cd "$BUILDDIR/cmake-2.8.12.2"
-
-    ./bootstrap --prefix="$PKGDIR"
-
-    make -j"$(nproc)"
-    make install
-
-    cd "$SRCDIR"
-fi
-
-###############################################################################
-# X264
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libx264.a" ]; then
-    compile_autoconf \
-        x264-snapshot-20180817-2245-stable.tar.bz2 \
-        "$BUILDDIR/x264-snapshot-20180817-2245-stable"
-fi
-
-###############################################################################
-# X265
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libx265.a" ]; then
-
-    rm -rf "$BUILDDIR/x265_2.8"
-
-    tar -xf "$SRCDIR/x265_2.8.tar.gz" \
-        -C "$BUILDDIR"
-
-    cd "$BUILDDIR/x265_2.8/source"
-
-    rm -rf build
-    mkdir build
-    cd build
-
-    cmake .. $CMAKE_ARGS
-
-    make -j"$(nproc)"
-    make install
-
-    cd "$SRCDIR"
-fi
-
-###############################################################################
-# FDK AAC
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libfdk-aac.a" ]; then
-    compile_autoconf \
-        fdk-aac_0.1.4.orig.tar.gz \
-        "$BUILDDIR/fdk-aac-0.1.4"
-fi
-
-###############################################################################
-# LAME
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libmp3lame.a" ]; then
-    compile_autoconf \
-        lame_3.100.orig.tar.gz \
-        "$BUILDDIR/lame-3.100"
-fi
-
-###############################################################################
-# OPUS
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libopus.a" ]; then
-    compile_autoconf \
-        opus-1.2.1.tar.gz \
-        "$BUILDDIR/opus-1.2.1"
-fi
-
-###############################################################################
-# VPX
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libvpx.a" ]; then
-
-    echo
-    echo "=================================================="
-    echo "Compiling libvpx 1.4.0"
-    echo "=================================================="
-
-    rm -rf "$BUILDDIR/libvpx-1.4.0"
-
-    tar -xf "$SRCDIR/libvpx-1.4.0.tar.bz2" \
-        -C "$BUILDDIR"
-
-    cd "$BUILDDIR/libvpx-1.4.0"
-
+if [ ! -f "$PKG/lib/libvpx.a" ]; then
+    rm -rf "$BUILD/libvpx-1.4.0"
+    tar -xf "$SRC/libvpx-1.4.0.tar.bz2" -C "$BUILD"
+    cd "$BUILD/libvpx-1.4.0"
     ./configure \
-        --prefix="$PKGDIR" \
+        --prefix="$PKG" \
         --disable-shared \
         --enable-static \
-        --disable-unit-tests
-
-    make -j"$(nproc)"
+        --disable-unit-tests \
+        --disable-examples
+    make -j"$JOBS"
     make install
-
-    cd "$SRCDIR"
+    cd "$SRC"
 fi
 
-###############################################################################
-# FRIBIDI
-###############################################################################
+[ -f "$PKG/lib/libvorbis.a" ] || {
+    build_auto libogg-1.3.3.tar.gz "$BUILD/libogg-1.3.3"
+    build_auto libvorbis-1.3.6.tar.gz "$BUILD/libvorbis-1.3.6"
+}
 
-if [ ! -f "$PKGDIR/lib/libfribidi.a" ]; then
-    compile_autoconf \
-        fribidi_1.0.5.orig.tar.bz2 \
-        "$BUILDDIR/fribidi-1.0.5"
-fi
+[ -f "$PKG/lib/libtheora.a" ] ||
+    build_auto libtheora-1.1.1.tar.bz2 "$BUILD/libtheora-1.1.1"
 
-###############################################################################
-# LIBASS
-###############################################################################
+[ -f "$PKG/lib/libFLAC.a" ] ||
+    build_auto flac-1.3.2.tar.xz "$BUILD/flac-1.3.2"
 
-if [ ! -f "$PKGDIR/lib/libass.a" ]; then
-    compile_autoconf \
-        libass-0.13.0.tar.gz \
-        "$BUILDDIR/libass-0.13.0"
-fi
+[ -f "$PKG/lib/libspeex.a" ] ||
+    build_auto speex-1.2.0.tar.gz "$BUILD/speex-1.2.0"
 
-###############################################################################
-# OGG / VORBIS
-###############################################################################
+[ -f "$PKG/lib/libwavpack.a" ] ||
+    build_auto wavpack-5.1.0.tar.bz2 "$BUILD/wavpack-5.1.0"
 
-if [ ! -f "$PKGDIR/lib/libvorbis.a" ]; then
+[ -f "$PKG/lib/libvo-aacenc.a" ] ||
+    build_auto vo-aacenc_0.1.3.orig.tar.gz "$BUILD/vo-aacenc-0.1.3"
 
-    compile_autoconf \
-        libogg-1.3.3.tar.gz \
-        "$BUILDDIR/libogg-1.3.3"
+[ -f "$PKG/lib/libopencore-amrnb.a" ] ||
+    build_auto opencore-amr_0.1.3.orig.tar.gz "$BUILD/opencore-amr-0.1.3"
 
-    compile_autoconf \
-        libvorbis-1.3.6.tar.gz \
-        "$BUILDDIR/libvorbis-1.3.6"
-fi
+[ -f "$PKG/lib/libfribidi.a" ] ||
+    build_auto fribidi_1.0.5.orig.tar.bz2 "$BUILD/fribidi-1.0.5"
 
-###############################################################################
-# THEORA
-###############################################################################
+[ -f "$PKG/lib/libsoxr.a" ] ||
+    build_cmake libsoxr_0.1.2.orig.tar.xz "$BUILD/soxr-0.1.2-Source"
 
-if [ ! -f "$PKGDIR/lib/libtheora.a" ]; then
-    compile_autoconf \
-        libtheora-1.1.1.tar.bz2 \
-        "$BUILDDIR/libtheora-1.1.1"
-fi
+[ -f "$PKG/lib/libass.a" ] ||
+    build_auto libass-0.13.0.tar.gz "$BUILD/libass-0.13.0"
 
-###############################################################################
-# SOXR
-###############################################################################
+# ----------------------------------------------------------------------
+# OpenJPEG
+# ----------------------------------------------------------------------
 
-if [ ! -f "$PKGDIR/lib/libsoxr.a" ]; then
-    compile_cmake \
-        libsoxr_0.1.2.orig.tar.xz \
-        "$BUILDDIR/soxr-0.1.2-Source"
-fi
-
-###############################################################################
-# FLAC
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libFLAC.a" ]; then
-    compile_autoconf \
-        flac-1.3.2.tar.xz \
-        "$BUILDDIR/flac-1.3.2"
-fi
-
-###############################################################################
-# SPEEX
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libspeex.a" ]; then
-    compile_autoconf \
-        speex-1.2.0.tar.gz \
-        "$BUILDDIR/speex-1.2.0"
-fi
-
-###############################################################################
-# OPENJPEG
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libopenjp2.a" ]; then
-
-    echo
-    echo "=================================================="
-    echo "Compiling OpenJPEG"
-    echo "=================================================="
-
-    rm -rf "$BUILDDIR/openjpeg-2.1.2"
-
-    tar -xf "$SRCDIR/openjpeg2_2.1.2.orig.tar.gz" \
-        -C "$BUILDDIR"
-
-    cd "$BUILDDIR/openjpeg-2.1.2"
-
+if [ ! -f "$PKG/lib/libopenjp2.a" ]; then
+    rm -rf "$BUILD/openjpeg-2.1.2"
+    tar -xf "$SRC/openjpeg2_2.1.2.orig.tar.gz" -C "$BUILD"
+    cd "$BUILD/openjpeg-2.1.2"
+    sed -i 's/VERSION 2.8.2/VERSION 2.8.0/g' CMakeLists.txt
     mkdir build
     cd build
-
-    sed \
-        's/VERSION 2.8.2/VERSION 2.8.0/g' \
-        -i ../CMakeLists.txt
-
-    cmake .. $CMAKE_ARGS
-
-    make -j"$(nproc)"
+    $CMAKE .. \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DBUILD_CODEC=OFF \
+        -DBUILD_TESTING=OFF
+    make -j"$JOBS"
     make install
-
-    cp \
-        bin/libopenjp2.a \
-        "$PKGDIR/lib/libopenjp2.a"
-
-    cd "$SRCDIR"
+    cd "$SRC"
 fi
 
-###############################################################################
-# OPENCORE AMR
-###############################################################################
+# ----------------------------------------------------------------------
+# CD/DVD
+# ----------------------------------------------------------------------
 
-if [ ! -f "$PKGDIR/lib/libopencore-amrnb.a" ]; then
-    compile_autoconf \
-        opencore-amr_0.1.3.orig.tar.gz \
-        "$BUILDDIR/opencore-amr-0.1.3"
+if [ ! -f "$PKG/lib/libcdio.a" ]; then
+    build_auto libcddb-1.3.2.tar.bz2 "$BUILD/libcddb-1.3.2"
+    build_auto libcdio-2.0.0.tar.bz2 "$BUILD/libcdio-2.0.0"
+    build_auto libcdio-paranoia-10.2+0.94+2.tar.gz \
+        "$BUILD/libcdio-paranoia-10.2+0.94+2"
 fi
 
-###############################################################################
-# WAVPACK
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libwavpack.a" ]; then
-    compile_autoconf \
-        wavpack-5.1.0.tar.bz2 \
-        "$BUILDDIR/wavpack-5.1.0"
+if [ ! -f "$PKG/lib/libdvdnav.a" ]; then
+    build_auto libdvdcss-1.4.2.tar.bz2 "$BUILD/libdvdcss-1.4.2"
+    build_auto libdvdread-6.0.0.tar.bz2 "$BUILD/libdvdread-6.0.0"
+    build_auto libdvdnav-6.0.0.tar.bz2 "$BUILD/libdvdnav-6.0.0"
 fi
 
-###############################################################################
-# VO-AACENC
-###############################################################################
+# ----------------------------------------------------------------------
+# LuaJIT
+# ----------------------------------------------------------------------
 
-if [ ! -f "$PKGDIR/lib/libvo-aacenc.a" ]; then
-    compile_autoconf \
-        vo-aacenc_0.1.3.orig.tar.gz \
-        "$BUILDDIR/vo-aacenc-0.1.3"
+if [ ! -f "$PKG/lib/libluajit-5.1.a" ]; then
+    rm -rf "$BUILD/LuaJIT-2.0.5"
+    tar -xf "$SRC/LuaJIT-2.0.5.tar.gz" -C "$BUILD"
+    cd "$BUILD/LuaJIT-2.0.5"
+    make -j"$JOBS" PREFIX="$PKG"
+    make install PREFIX="$PKG"
+    cd "$SRC"
 fi
 
-###############################################################################
-# CDIO
-###############################################################################
+# ----------------------------------------------------------------------
+# ENCA / libdrm
+# ----------------------------------------------------------------------
 
-if [ ! -f "$PKGDIR/lib/libcdio.a" ]; then
+[ -f "$PKG/lib/libenca.a" ] ||
+    build_auto enca_1.19.orig.tar.gz "$BUILD/enca-1.19"
 
-    compile_autoconf \
-        libcddb-1.3.2.tar.bz2 \
-        "$BUILDDIR/libcddb-1.3.2"
+[ -f "$PKG/lib/libdrm.a" ] ||
+    build_auto libdrm-2.4.89.tar.bz2 "$BUILD/libdrm-2.4.89"
 
-    compile_autoconf \
-        libcdio-2.0.0.tar.bz2 \
-        "$BUILDDIR/libcdio-2.0.0"
+# ----------------------------------------------------------------------
+# OpenSSL
+# ----------------------------------------------------------------------
 
-    compile_autoconf \
-        libcdio-paranoia-10.2+0.94+2.tar.gz \
-        "$BUILDDIR/libcdio-paranoia-10.2+0.94+2"
-fi
-
-###############################################################################
-# DVD
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libdvdnav.a" ]; then
-
-    compile_autoconf \
-        libdvdcss-1.4.2.tar.bz2 \
-        "$BUILDDIR/libdvdcss-1.4.2"
-
-    compile_autoconf \
-        libdvdread-6.0.0.tar.bz2 \
-        "$BUILDDIR/libdvdread-6.0.0"
-
-    compile_autoconf \
-        libdvdnav-6.0.0.tar.bz2 \
-        "$BUILDDIR/libdvdnav-6.0.0"
-fi
-
-###############################################################################
-# LUAJIT
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libluajit-5.1.a" ]; then
-
-    echo
-    echo "=================================================="
-    echo "Compiling LuaJIT"
-    echo "=================================================="
-
-    rm -rf "$BUILDDIR/LuaJIT-2.0.5"
-
-    tar -xf "$SRCDIR/LuaJIT-2.0.5.tar.gz" \
-        -C "$BUILDDIR"
-
-    cd "$BUILDDIR/LuaJIT-2.0.5"
-
-    sed \
-        -i "s| PREFIX=.*| PREFIX=$PKGDIR|" \
-        Makefile
-
-    PKG_CONFIG_PATH="$PKGDIR/lib/pkgconfig" \
-        make -j"$(nproc)"
-
-    make install
-
-    cd "$SRCDIR"
-fi
-
-###############################################################################
-# ENCA
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libenca.a" ]; then
-    compile_autoconf \
-        enca_1.19.orig.tar.gz \
-        "$BUILDDIR/enca-1.19"
-fi
-
-###############################################################################
-# LIBDRM
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libdrm.a" ]; then
-    compile_autoconf \
-        libdrm-2.4.89.tar.bz2 \
-        "$BUILDDIR/libdrm-2.4.89"
-fi
-
-###############################################################################
-# DAV1D - AV1 DECODER
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libdav1d.a" ]; then
-
-    echo
-    echo "=================================================="
-    echo "Compiling dav1d 0.7.1 - AV1 decoder"
-    echo "=================================================="
-
-    rm -rf "$BUILDDIR/dav1d-0.7.1"
-
-    tar -xf "$SRCDIR/dav1d-0.7.1.tar.xz" \
-        -C "$BUILDDIR"
-
-    cd "$BUILDDIR/dav1d-0.7.1"
-
-    #
-    # dav1d uses Meson/Ninja.
-    #
-    # The GitHub Actions environment will provide these tools.
-    #
-    meson setup build \
-        --prefix="$PKGDIR" \
-        --libdir=lib \
-        --buildtype=release \
-        -Denable_tools=false \
-        -Denable_tests=false
-
-    ninja -C build -j"$(nproc)"
-    ninja -C build install
-
-    cd "$SRCDIR"
-
-    if [ ! -f "$PKGDIR/lib/libdav1d.a" ]; then
-        echo "ERROR: libdav1d.a was not produced."
-        exit 1
-    fi
-fi
-
-###############################################################################
-# OPENSSL
-###############################################################################
-
-if [ ! -f "$PKGDIR/lib/libssl.a" ]; then
-
-    echo
-    echo "=================================================="
-    echo "Compiling OpenSSL 1.0.2d"
-    echo "=================================================="
-
-    rm -rf "$BUILDDIR/openssl-1.0.2d"
-
-    tar -xzf "$SRCDIR/openssl-1.0.2d.tar.gz" \
-        -C "$BUILDDIR"
-
-    cd "$BUILDDIR/openssl-1.0.2d"
-
+if [ ! -f "$PKG/lib/libssl.a" ]; then
+    rm -rf "$BUILD/openssl-1.0.2d"
+    tar -xf "$SRC/openssl-1.0.2d.tar.gz" -C "$BUILD"
+    cd "$BUILD/openssl-1.0.2d"
     ./config \
-        --prefix="$PKGDIR" \
-        no-shared
-
-    make -j"$(nproc)"
-    make install
-
-    cd "$SRCDIR"
+        --prefix="$PKG" \
+        no-shared \
+        no-ssl3 \
+        no-comp
+    make -j"$JOBS"
+    make install_sw
+    cd "$SRC"
 fi
 
-###############################################################################
-# REMOVE SHARED LIBRARIES
-###############################################################################
+# ----------------------------------------------------------------------
+# dav1d - AV1 decoder
+# ----------------------------------------------------------------------
 
-rm -f "$PKGDIR"/lib/*.so*
-rm -f "$PKGDIR"/lib/*.so.* 2>/dev/null || true
+if [ ! -f "$PKG/lib/libdav1d.a" ]; then
+    echo "==> Building dav1d 0.7.1"
 
-###############################################################################
-# FFMPEG
-###############################################################################
+    rm -rf "$BUILD/dav1d-0.7.1"
+    tar -xf "$SRC/dav1d-0.7.1.tar.xz" -C "$BUILD"
 
-if [ ! -f "$PKGDIR/lib/libavformat.a" ]; then
+    cd "$BUILD/dav1d-0.7.1"
 
-    echo
-    echo "=================================================="
-    echo "Compiling FFmpeg 4.3"
-    echo "AV1 decoder: dav1d"
-    echo "=================================================="
+    meson setup build \
+        --prefix="$PKG" \
+        --libdir=lib \
+        --default-library=static \
+        -Denable_tools=false \
+        -Denable_tests=false \
+        -Denable_examples=false
 
-    rm -rf "$BUILDDIR/ffmpeg-4.3"
+    meson compile -C build
+    meson install -C build
 
-    tar -xf "$SRCDIR/ffmpeg-4.3.tar.xz" \
-        -C "$BUILDDIR"
+    cd "$SRC"
 
-    cd "$BUILDDIR/ffmpeg-4.3"
+    test -f "$PKG/lib/libdav1d.a"
+fi
 
-    ./configure --help > "$BUILDDIR/ffmpeg.help"
+# ----------------------------------------------------------------------
+# FFmpeg 4.3
+# ----------------------------------------------------------------------
 
-    PKG_CONFIG_PATH="$PKGDIR/lib/pkgconfig" \
-    PATH="$PKGDIR/bin:$PATH" \
+if [ ! -f "$PKG/lib/libavformat.a" ]; then
+    echo "==> Building FFmpeg 4.3"
+
+    rm -rf "$BUILD/ffmpeg-4.3"
+    tar -xf "$SRC/ffmpeg-4.3.tar.xz" -C "$BUILD"
+
+    cd "$BUILD/ffmpeg-4.3"
+
     ./configure \
-        --prefix="$PKGDIR" \
+        --prefix="$PKG" \
+        --bindir="$PKG/bin" \
+        --pkg-config-flags="--static" \
+        --extra-cflags="-I$PKG/include" \
+        --extra-ldflags="-L$PKG/lib" \
+        --extra-libs="-lpthread -lm -ldl" \
+        --disable-shared \
+        --enable-static \
+        --disable-doc \
+        --disable-manpages \
+        --disable-debug \
+        --disable-programs \
+        --disable-ffprobe \
+        --disable-ffplay \
+        --disable-sdl2 \
+        --disable-xlib \
         --disable-libxcb \
         --disable-libxcb-shm \
         --disable-libxcb-xfixes \
         --disable-libxcb-shape \
-        --disable-xlib \
-        --disable-doc \
-        --disable-manpages \
-        --pkg-config-flags="--static" \
-        --disable-shared \
-        --enable-static \
-        --extra-cflags="-I${PKGDIR}/include" \
-        --extra-ldflags="-L${PKGDIR}/lib" \
-        --bindir="${PKGDIR}/bin" \
         --enable-gpl \
         --enable-version3 \
         --enable-nonfree \
+        --enable-openssl \
+        --enable-pthreads \
         --enable-libdav1d \
         --enable-libass \
         --enable-libfreetype \
@@ -727,210 +378,130 @@ if [ ! -f "$PKGDIR/lib/libavformat.a" ]; then
         --enable-libtheora \
         --enable-libx264 \
         --enable-libx265 \
-        --enable-libxvid \
-        --enable-openssl \
-        --enable-pthreads \
-        --extra-libs=-lpthread \
-        --disable-programs \
-        --disable-ffprobe \
-        --disable-ffplay \
-        --disable-sdl2 \
+        --enable-libwavpack \
         --disable-encoders \
         --ignore-tests
 
-    #
-    # IMPORTANT:
-    #
-    # --disable-encoders does NOT disable decoders.
-    #
-    # FFmpeg therefore keeps its built-in AV1 decoder as well,
-    # while dav1d provides the optimized external AV1 decoder.
-    #
-
-    PKG_CONFIG_PATH="$PKGDIR/lib/pkgconfig" \
-    PATH="$PKGDIR/bin:$PATH" \
-        make -j"$(nproc)"
-
+    make -j"$JOBS"
     make install
 
-    cd "$SRCDIR"
+    cd "$SRC"
 fi
 
-###############################################################################
-# MPV
-###############################################################################
+# ----------------------------------------------------------------------
+# Remove shared libraries
+# ----------------------------------------------------------------------
 
-if [ -f "$PKGDIR/lib/libavformat.a" ] && \
-   [ ! -f "$PKGDIR/bin/mpv" ]; then
+find "$PKG/lib" -type f \( -name '*.so' -o -name '*.so.*' \) -delete 2>/dev/null || true
 
-    echo
-    echo "=================================================="
-    echo "Compiling mpv 0.32.0"
-    echo "=================================================="
+# ----------------------------------------------------------------------
+# mpv 0.32.0
+# ----------------------------------------------------------------------
 
-    rm -rf "$BUILDDIR/mpv-0.32.0"
+if [ ! -x "$PKG/bin/mpv" ]; then
+    echo "==> Building mpv 0.32.0"
 
-    tar -xf "$SRCDIR/mpv_0.32.0.orig.tar.gz" \
-        -C "$BUILDDIR"
+    rm -rf "$BUILD/mpv-0.32.0"
+    tar -xf "$SRC/mpv_0.32.0.orig.tar.gz" -C "$BUILD"
 
-    cd "$BUILDDIR/mpv-0.32.0"
+    cd "$BUILD/mpv-0.32.0"
 
     if [ ! -f waf ]; then
-
-        wget \
-            --no-check-certificate \
+        wget -q --show-progress \
             https://www.freehackers.org/~tnagy/release/waf-2.0.20 \
             -O waf
-
-        chmod +x waf
+        chmod 755 waf
     fi
 
-    PKG_CONFIG_PATH="$PKGDIR/lib/pkgconfig" \
-    PATH="$PKGDIR/bin:$PATH" \
-        ./waf configure \
-        --prefix="$PKGDIR"
+    PKG_CONFIG_PATH="$PKG_CONFIG_PATH" \
+    PATH="$PKG/bin:$PATH" \
+    ./waf configure \
+        --prefix="$PKG" \
+        --enable-static-build \
+        --disable-manpage-build
 
-    PKG_CONFIG_PATH="$PKGDIR/lib/pkgconfig" \
-    PATH="$PKGDIR/bin:$PATH" \
-        ./waf build \
-        -j"$(nproc)"
+    PKG_CONFIG_PATH="$PKG_CONFIG_PATH" \
+    PATH="$PKG/bin:$PATH" \
+    ./waf build -j"$JOBS"
 
-    PKG_CONFIG_PATH="$PKGDIR/lib/pkgconfig" \
-    PATH="$PKGDIR/bin:$PATH" \
-        ./waf install
+    PKG_CONFIG_PATH="$PKG_CONFIG_PATH" \
+    PATH="$PKG/bin:$PATH" \
+    ./waf install
 
-    cd "$SRCDIR"
+    cd "$SRC"
 fi
 
-###############################################################################
-# VERIFY AV1 SUPPORT
-###############################################################################
+test -x "$PKG/bin/mpv"
 
-echo
-echo "=================================================="
-echo "Checking FFmpeg AV1 support"
-echo "=================================================="
+# ----------------------------------------------------------------------
+# yt-dlp
+# ----------------------------------------------------------------------
 
-if [ -x "$PKGDIR/bin/ffmpeg" ]; then
+ROOTFS="$ROOT/squashfs-root"
 
-    "$PKGDIR/bin/ffmpeg" -decoders 2>/dev/null | \
-        grep -E 'av1|dav1d' || true
-
-fi
-
-if [ -f "$PKGDIR/lib/libdav1d.a" ]; then
-    echo "OK: libdav1d.a found"
-else
-    echo "ERROR: libdav1d.a missing"
-    exit 1
-fi
-
-###############################################################################
-# YT-DLP
-###############################################################################
-
-echo
-echo "=================================================="
-echo "Installing yt-dlp"
-echo "=================================================="
-
-if [ ! -f "$SRCDIR/yt-dlp" ]; then
-
-    wget \
-        --no-check-certificate \
+if [ ! -f "$SRC/yt-dlp" ]; then
+    echo "==> Downloading yt-dlp"
+    wget -q --show-progress --retry-tries=5 \
         https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp_linux \
-        -O "$SRCDIR/yt-dlp"
-
+        -O "$SRC/yt-dlp"
+    chmod 755 "$SRC/yt-dlp"
 fi
 
-chmod 755 "$SRCDIR/yt-dlp"
+# ----------------------------------------------------------------------
+# AppImage-style squashfs bundle
+# ----------------------------------------------------------------------
 
-###############################################################################
-# CREATE SQUASHFS BUNDLE
-###############################################################################
+rm -rf "$ROOTFS"
 
-if [ -f "$PKGDIR/bin/mpv" ] && \
-   [ ! -d "$HOMEDIR/squashfs-root" ]; then
+mkdir -p \
+    "$ROOTFS/usr/bin" \
+    "$ROOTFS/usr/share/applications"
 
-    echo
-    echo "=================================================="
-    echo "Making mpv-player bundle"
-    echo "=================================================="
+cp "$PKG/bin/mpv" "$ROOTFS/usr/bin/mpv"
+install -m755 "$SRC/yt-dlp" "$ROOTFS/usr/bin/yt-dlp"
 
-    mkdir -p \
-        "$HOMEDIR/squashfs-root/usr/bin" \
-        "$HOMEDIR/squashfs-root/usr/share/applications"
+strip "$ROOTFS/usr/bin/mpv" || true
 
-    ###########################################################################
-    # MPV
-    ###########################################################################
+if [ -f "$PKG/share/applications/mpv.desktop" ]; then
+    cp "$PKG/share/applications/mpv.desktop" \
+       "$ROOTFS/usr/share/applications/mpv.desktop"
 
-    cp \
-        "$PKGDIR/bin/mpv" \
-        "$HOMEDIR/squashfs-root/usr/bin/mpv"
-
-    chmod 755 \
-        "$HOMEDIR/squashfs-root/usr/bin/mpv"
-
-    strip \
-        "$HOMEDIR/squashfs-root/usr/bin/mpv" || true
-
-    ###########################################################################
-    # DESKTOP FILE
-    ###########################################################################
-
-    if [ -f "$PKGDIR/share/applications/mpv.desktop" ]; then
-
-        cp \
-            "$PKGDIR/share/applications/mpv.desktop" \
-            "$HOMEDIR/squashfs-root/usr/share/applications/mpv.desktop"
-
-        echo "NoDisplay=true" >> \
-            "$HOMEDIR/squashfs-root/usr/share/applications/mpv.desktop"
-    fi
-
-    ###########################################################################
-    # YT-DLP
-    ###########################################################################
-
-    install -m755 \
-        "$SRCDIR/yt-dlp" \
-        "$HOMEDIR/squashfs-root/usr/bin/yt-dlp"
-
-    #
-    # Compatibility for applications that still call youtube-dl.
-    #
-    ln -sf \
-        yt-dlp \
-        "$HOMEDIR/squashfs-root/usr/bin/youtube-dl"
-
-    ###########################################################################
-    # SQUASHFS
-    ###########################################################################
-
-    cd "$HOMEDIR"
-
-    rm -f "$HOMEDIR/mpv.sb"
-
-    mksquashfs \
-        squashfs-root \
-        mpv.sb \
-        -comp gzip \
-        -noappend
-
-    ###########################################################################
-    # RESULT
-    ###########################################################################
-
-    echo
-    echo "=================================================="
-    echo "BUILD COMPLETE"
-    echo "=================================================="
-    echo
-    echo "Bundle:"
-    echo
-    echo "  $HOMEDIR/mpv.sb"
-    echo
-
-    ls -lh "$HOMEDIR/mpv.sb"
+    echo "NoDisplay=true" \
+        >> "$ROOTFS/usr/share/applications/mpv.desktop"
 fi
+
+# Useful sanity check: confirm dav1d is linked into FFmpeg/mpv.
+echo
+echo "=================================================="
+echo " Build information"
+echo "=================================================="
+
+echo "mpv:"
+"$ROOTFS/usr/bin/mpv" --version | head -n 5 || true
+
+echo
+echo "Static libraries:"
+ls -lh \
+    "$PKG/lib/libdav1d.a" \
+    "$PKG/lib/libavcodec.a" \
+    "$PKG/lib/libavformat.a" \
+    "$PKG/lib/libavutil.a"
+
+echo
+echo "=================================================="
+echo " Creating mpv.sb"
+echo "=================================================="
+
+rm -f "$ROOT/mpv.sb"
+
+mksquashfs "$ROOTFS" "$ROOT/mpv.sb" \
+    -comp gzip \
+    -noappend
+
+echo
+echo "=================================================="
+echo " DONE"
+echo "=================================================="
+
+ls -lh "$ROOT/mpv.sb"
+file "$ROOT/mpv.sb"
