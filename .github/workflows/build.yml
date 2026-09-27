@@ -11,8 +11,21 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
+      # ------------------------------------------------------------
+      # Checkout repository
+      # ------------------------------------------------------------
+
       - name: Checkout
         uses: actions/checkout@v4
+
+
+      # ------------------------------------------------------------
+      # Host tools
+      #
+      # Ubuntu is ONLY used as the GitHub Actions host.
+      # The actual mpv build happens inside fs-slackware.sb.
+      # ------------------------------------------------------------
 
       - name: Install host tools
         shell: bash
@@ -20,33 +33,60 @@ jobs:
           set -euxo pipefail
 
           sudo apt-get update
+
           sudo apt-get install -y \
             squashfs-tools \
             wget
+
+
+      # ------------------------------------------------------------
+      # Download Slackware filesystem
+      # ------------------------------------------------------------
 
       - name: Download fs-slackware.sb
         shell: bash
         run: |
           set -euxo pipefail
 
+          echo "=================================================="
+          echo " Downloading fs-slackware.sb"
+          echo "=================================================="
+
           wget -q --show-progress \
             https://github.com/simargl/slik-linux/releases/download/slik-linux-0.1.0-284/fs-slackware.sb \
             -O fs-slackware.sb
 
+          echo
+          echo "Downloaded filesystem:"
+
           ls -lh fs-slackware.sb
+
+          file fs-slackware.sb
+
+
+      # ------------------------------------------------------------
+      # Extract Slackware filesystem
+      # ------------------------------------------------------------
 
       - name: Extract fs-slackware.sb
         shell: bash
         run: |
           set -euxo pipefail
 
+          echo "=================================================="
+          echo " Extracting fs-slackware.sb"
+          echo "=================================================="
+
           sudo rm -rf fs-root
 
           # IMPORTANT:
-          # unsquashfs must run as root so it can recreate
-          # /dev/null, /dev/random, etc.
-          sudo unsquashfs -d fs-root fs-slackware.sb
+          # sudo is required because fs-slackware.sb contains
+          # character devices such as /dev/null and /dev/random.
+          sudo unsquashfs \
+            -d fs-root \
+            fs-slackware.sb
 
+          echo
           echo "=================================================="
           echo " Slackware filesystem"
           echo "=================================================="
@@ -54,36 +94,79 @@ jobs:
           sudo cat fs-root/etc/slackware-version || true
 
           echo
-          echo "Checking device nodes..."
+          echo "Filesystem size:"
+          sudo du -sh fs-root
+
+          echo
+          echo "Checking device nodes:"
 
           sudo ls -l fs-root/dev/null
           sudo ls -l fs-root/dev/random
+
+          echo
+          echo "Checking shell:"
+
+          sudo ls -l fs-root/bin/bash
+
+
+      # ------------------------------------------------------------
+      # Prepare directories and mounts
+      # ------------------------------------------------------------
 
       - name: Prepare chroot
         shell: bash
         run: |
           set -euxo pipefail
 
-          sudo mkdir -p \
-            fs-root/github-workspace \
-            fs-root/output
+          echo "=================================================="
+          echo " Preparing chroot"
+          echo "=================================================="
 
-          # Source tree
+          # IMPORTANT:
+          # The host-side output directory must exist BEFORE
+          # it can be used as a bind mount source.
+          mkdir -p "$GITHUB_WORKSPACE/output"
+
+          # Directories inside the Slackware filesystem.
+          sudo mkdir -p \
+            "$GITHUB_WORKSPACE/fs-root/github-workspace" \
+            "$GITHUB_WORKSPACE/fs-root/output" \
+            "$GITHUB_WORKSPACE/fs-root/proc" \
+            "$GITHUB_WORKSPACE/fs-root/sys" \
+            "$GITHUB_WORKSPACE/fs-root/dev"
+
+          echo
+          echo "=================================================="
+          echo " Mounting GitHub workspace"
+          echo "=================================================="
+
           sudo mount --bind \
             "$GITHUB_WORKSPACE" \
             "$GITHUB_WORKSPACE/fs-root/github-workspace"
 
-          # Output directory
+          echo
+          echo "=================================================="
+          echo " Mounting output directory"
+          echo "=================================================="
+
           sudo mount --bind \
             "$GITHUB_WORKSPACE/output" \
             "$GITHUB_WORKSPACE/fs-root/output"
 
-          # proc
+          echo
+          echo "=================================================="
+          echo " Mounting /proc"
+          echo "=================================================="
+
           sudo mount -t proc \
             proc \
             "$GITHUB_WORKSPACE/fs-root/proc"
 
-          # sys
+          echo
+          echo "=================================================="
+          echo " Mounting /sys"
+          echo "=================================================="
+
           sudo mount --rbind \
             /sys \
             "$GITHUB_WORKSPACE/fs-root/sys"
@@ -91,7 +174,11 @@ jobs:
           sudo mount --make-rslave \
             "$GITHUB_WORKSPACE/fs-root/sys"
 
-          # dev
+          echo
+          echo "=================================================="
+          echo " Mounting /dev"
+          echo "=================================================="
+
           sudo mount --rbind \
             /dev \
             "$GITHUB_WORKSPACE/fs-root/dev"
@@ -99,18 +186,43 @@ jobs:
           sudo mount --make-rslave \
             "$GITHUB_WORKSPACE/fs-root/dev"
 
-          # DNS
+          echo
+          echo "=================================================="
+          echo " Configuring DNS"
+          echo "=================================================="
+
           sudo cp -L \
             /etc/resolv.conf \
             "$GITHUB_WORKSPACE/fs-root/etc/resolv.conf"
 
-      - name: Build mpv inside fs-slackware
+          echo
+          echo "=================================================="
+          echo " Chroot mounts"
+          echo "=================================================="
+
+          mount | grep "$GITHUB_WORKSPACE/fs-root" || true
+
+
+      # ------------------------------------------------------------
+      # Build inside fs-slackware.sb
+      # ------------------------------------------------------------
+
+      - name: Build mpv inside Slackware
         shell: bash
         run: |
           set -euxo pipefail
 
-          sudo chroot "$GITHUB_WORKSPACE/fs-root" \
+          echo "=================================================="
+          echo " Entering fs-slackware.sb"
+          echo "=================================================="
+
+          sudo chroot \
+            "$GITHUB_WORKSPACE/fs-root" \
             /bin/bash -euxo pipefail -c '
+
+              # --------------------------------------------------
+              # Environment
+              # --------------------------------------------------
 
               export HOME=/root
               export LC_ALL=C
@@ -118,52 +230,134 @@ jobs:
 
               export PATH=/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
 
+              # --------------------------------------------------
+              # Workspace
+              # --------------------------------------------------
+
               cd /github-workspace
 
               echo "=================================================="
               echo " Slackware build environment"
               echo "=================================================="
 
+              echo
+              echo "Slackware version:"
               cat /etc/slackware-version || true
+
+              echo
+              echo "Kernel:"
               uname -a
 
               echo
+              echo "Architecture:"
+              uname -m
+
+              echo
               echo "=================================================="
-              echo " Toolchain"
+              echo " Checking required tools"
               echo "=================================================="
 
+              echo
+              echo "--- gcc ---"
               command -v gcc
-              command -v g++
-              command -v make
-              command -v ar
-              command -v ranlib
-              command -v strip
-              command -v pkg-config
-              command -v python3
-              command -v wget
-              command -v tar
-
               gcc --version
-              make --version
-              python3 --version
+
+              echo
+              echo "--- g++ ---"
+              command -v g++
+              g++ --version
+
+              echo
+              echo "--- make ---"
+              command -v make
+              make --version | head -n 1
+
+              echo
+              echo "--- ar ---"
+              command -v ar
+              ar --version | head -n 1
+
+              echo
+              echo "--- ranlib ---"
+              command -v ranlib
+              ranlib --version | head -n 1
+
+              echo
+              echo "--- strip ---"
+              command -v strip
+              strip --version | head -n 1
+
+              echo
+              echo "--- pkg-config ---"
+              command -v pkg-config
               pkg-config --version
 
               echo
-              echo "=================================================="
-              echo " Optional tools"
-              echo "=================================================="
+              echo "--- python3 ---"
+              command -v python3
+              python3 --version
 
-              meson --version || true
-              ninja --version || true
-              nasm -version || true
-              yasm --version || true
-              cmake --version || true
-              autoconf --version | head -n 1 || true
-              automake --version | head -n 1 || true
+              echo
+              echo "--- wget ---"
+              command -v wget
+              wget --version | head -n 1
+
+              echo
+              echo "--- tar ---"
+              command -v tar
+              tar --version | head -n 1
 
               echo
               echo "=================================================="
-              echo " Building mpv"
+              echo " Optional build tools"
+              echo "=================================================="
+
+              echo
+              echo "--- cmake ---"
+              cmake --version || true
+
+              echo
+              echo "--- meson ---"
+              meson --version || true
+
+              echo
+              echo "--- ninja ---"
+              ninja --version || true
+
+              echo
+              echo "--- nasm ---"
+              nasm -version || true
+
+              echo
+              echo "--- yasm ---"
+              yasm --version || true
+
+              echo
+              echo "--- autoconf ---"
+              autoconf --version | head -n 1 || true
+
+              echo
+              echo "--- automake ---"
+              automake --version | head -n 1 || true
+
+              echo
+              echo "--- libtool ---"
+              libtool --version | head -n 1 || true
+
+              echo
+              echo "=================================================="
+              echo " Network test"
+              echo "=================================================="
+
+              wget -q \
+                --spider \
+                https://www.google.com
+
+              echo "Network access OK"
+
+              echo
+              echo "=================================================="
+              echo " Starting build_mpv.sh"
               echo "=================================================="
 
               chmod +x ./build_mpv.sh
@@ -175,10 +369,27 @@ jobs:
               echo " Build completed"
               echo "=================================================="
 
+              echo
+              echo "Checking mpv:"
+
               test -x /tmp/mpv-build/pkg/bin/mpv
+
+              /tmp/mpv-build/pkg/bin/mpv \
+                --version | head -n 10
+
+              echo
+              echo "Checking mpv file:"
+
+              file /tmp/mpv-build/pkg/bin/mpv
+
+              echo
+              echo "Checking final squashfs:"
+
               test -f /tmp/mpv-build/mpv.sb
 
               ls -lh /tmp/mpv-build/mpv.sb
+
+              file /tmp/mpv-build/mpv.sb
 
               echo
               echo "=================================================="
@@ -189,8 +400,16 @@ jobs:
                 /tmp/mpv-build/mpv.sb \
                 /output/mpv.sb
 
+              echo
+              echo "Output:"
+
               ls -lh /output/mpv.sb
             '
+
+
+      # ------------------------------------------------------------
+      # Cleanup
+      # ------------------------------------------------------------
 
       - name: Cleanup mounts
         if: always()
@@ -198,15 +417,40 @@ jobs:
         run: |
           set +e
 
-          sudo umount -R "$GITHUB_WORKSPACE/fs-root/dev" 2>/dev/null || true
-          sudo umount -R "$GITHUB_WORKSPACE/fs-root/sys" 2>/dev/null || true
-          sudo umount "$GITHUB_WORKSPACE/fs-root/proc" 2>/dev/null || true
-          sudo umount "$GITHUB_WORKSPACE/fs-root/output" 2>/dev/null || true
-          sudo umount "$GITHUB_WORKSPACE/fs-root/github-workspace" 2>/dev/null || true
+          echo "=================================================="
+          echo " Cleaning up mounts"
+          echo "=================================================="
+
+          sudo umount -R \
+            "$GITHUB_WORKSPACE/fs-root/dev" \
+            2>/dev/null || true
+
+          sudo umount -R \
+            "$GITHUB_WORKSPACE/fs-root/sys" \
+            2>/dev/null || true
+
+          sudo umount \
+            "$GITHUB_WORKSPACE/fs-root/proc" \
+            2>/dev/null || true
+
+          sudo umount \
+            "$GITHUB_WORKSPACE/fs-root/output" \
+            2>/dev/null || true
+
+          sudo umount \
+            "$GITHUB_WORKSPACE/fs-root/github-workspace" \
+            2>/dev/null || true
+
+          echo "Cleanup complete"
+
+
+      # ------------------------------------------------------------
+      # Upload resulting mpv.sb
+      # ------------------------------------------------------------
 
       - name: Upload mpv bundle
         uses: actions/upload-artifact@v4
         with:
-          name: mpv-static
+          name: mpv-static-slackware
           path: output/mpv.sb
           if-no-files-found: error
