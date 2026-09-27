@@ -111,6 +111,7 @@ https://download.videolan.org/pub/videolan/libdvdread/6.0.0/libdvdread-6.0.0.tar
 https://download.videolan.org/pub/videolan/libdvdnav/6.0.0/libdvdnav-6.0.0.tar.bz2
 https://macports-distfiles.mirrorservice.org/luajit/LuaJIT-2.0.5.tar.gz
 https://archive.debian.org/debian/pool/main/e/enca/enca_1.19.orig.tar.gz
+https://archive.debian.org/debian/pool/main/libp/libpciaccess/libpciaccess_0.14.orig.tar.gz
 https://dri.freedesktop.org/libdrm/libdrm-2.4.89.tar.bz2
 https://downloads.videolan.org/testing/contrib/dav1d/dav1d-0.7.1.tar.xz
 https://ffmpeg.org/releases/ffmpeg-4.3.tar.xz
@@ -340,14 +341,63 @@ if [ ! -f "$PKG/lib/libluajit-5.1.a" ]; then
 fi
 
 # ----------------------------------------------------------------------
+# libpciaccess 
+# ----------------------------------------------------------------------
+
+if [ ! -f "$PKG/lib/libpciaccess.a" ]; then
+    echo "==> Building libpciaccess 0.14"
+
+    rm -rf "$BUILD/libpciaccess-0.14"
+    tar -xf "$SRC/libpciaccess_0.14.orig.tar.gz" -C "$BUILD"
+
+    cd "$BUILD/libpciaccess-0.14"
+
+    if [ ! -f configure ]; then
+        autoreconf -fiv
+    fi
+
+    CFLAGS="-O2 -fPIC" \
+    ./configure \
+        --prefix="$PKG" \
+        --disable-shared \
+        --enable-static
+
+    make -j"$JOBS"
+    make install
+
+    cd "$SRC"
+fi
+
+# ----------------------------------------------------------------------
 # ENCA / libdrm
 # ----------------------------------------------------------------------
 
 [ -f "$PKG/lib/libenca.a" ] ||
     build_auto enca_1.19.orig.tar.gz "$BUILD/enca-1.19"
 
-[ -f "$PKG/lib/libdrm.a" ] ||
-    build_auto libdrm-2.4.89.tar.bz2 "$BUILD/libdrm-2.4.89"
+if [ ! -f "$PKG/lib/libdrm.a" ]; then
+    echo "==> Building libdrm 2.4.89"
+
+    rm -rf "$BUILD/libdrm-2.4.89"
+    tar -xf "$SRC/libdrm-2.4.89.tar.bz2" -C "$BUILD"
+
+    cd "$BUILD/libdrm-2.4.89"
+
+    if [ ! -f configure ]; then
+        autoreconf -fiv
+    fi
+
+    CFLAGS="-O2 -fPIC" \
+    ./configure \
+        --prefix="$PKG" \
+        --disable-shared \
+        --enable-static
+
+    make -j"$JOBS"
+    make install
+
+    cd "$SRC"
+fi
 
 # ----------------------------------------------------------------------
 # OpenSSL
