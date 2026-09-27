@@ -192,8 +192,26 @@ if [ ! -f "$PKG/lib/libx265.a" ]; then
     cd "$SRC"
 fi
 
-[ -f "$PKG/lib/libfdk-aac.a" ] ||
-    build_auto fdk-aac_0.1.4.orig.tar.gz "$BUILD/fdk-aac-0.1.4"
+if [ ! -f "$PKG/lib/libfdk-aac.a" ]; then
+    echo "==> Building fdk-aac 0.1.4"
+
+    rm -rf "$BUILD/fdk-aac-0.1.4"
+    tar -xf "$SRC/fdk-aac_0.1.4.orig.tar.gz" -C "$BUILD"
+
+    cd "$BUILD/fdk-aac-0.1.4"
+
+    ./configure \
+        --prefix="$PKG" \
+        --disable-shared \
+        --enable-static \
+        CFLAGS="-O2 -fPIC" \
+        CXXFLAGS="-O2 -fPIC -Wno-narrowing"
+
+    make -j"$JOBS"
+    make install
+
+    cd "$SRC"
+fi
 
 [ -f "$PKG/lib/libmp3lame.a" ] ||
     build_auto lame_3.100.orig.tar.gz "$BUILD/lame-3.100"
