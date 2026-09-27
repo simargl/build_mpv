@@ -21,17 +21,11 @@ jobs:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Show runner information
-        run: |
-          docker --version
-          docker info
-
       - name: Build inside Ubuntu 16.04
         run: |
           docker pull ubuntu:16.04
 
           docker run --rm \
-            --privileged \
             -v "$PWD:/src" \
             -w /src \
             ubuntu:16.04 \
@@ -47,11 +41,11 @@ jobs:
               echo "Fix Ubuntu 16.04 EOL repositories"
               echo "=================================================="
 
-              cat > /etc/apt/sources.list <<EOF
-              deb http://old-releases.ubuntu.com/ubuntu/ xenial main restricted universe multiverse
-              deb http://old-releases.ubuntu.com/ubuntu/ xenial-updates main restricted universe multiverse
-              deb http://old-releases.ubuntu.com/ubuntu/ xenial-security main restricted universe multiverse
-              EOF
+              printf "%s\n" \
+                "deb http://old-releases.ubuntu.com/ubuntu/ xenial main restricted universe multiverse" \
+                "deb http://old-releases.ubuntu.com/ubuntu/ xenial-updates main restricted universe multiverse" \
+                "deb http://old-releases.ubuntu.com/ubuntu/ xenial-security main restricted universe multiverse" \
+                > /etc/apt/sources.list
 
               rm -f /etc/apt/sources.list.d/*.list || true
 
@@ -93,16 +87,23 @@ jobs:
                 squashfs-tools
 
               echo "=================================================="
-              echo "Install Meson compatible with Ubuntu 16.04"
+              echo "Install Meson"
               echo "=================================================="
 
               python3 -m pip install \
                 --upgrade \
                 "meson==0.55.3"
 
+              echo "Meson:"
               meson --version
+
+              echo "Ninja:"
               ninja --version
+
+              echo "Python:"
               python3 --version
+
+              echo "GCC:"
               gcc --version
 
               echo "=================================================="
