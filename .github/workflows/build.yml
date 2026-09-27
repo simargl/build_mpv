@@ -94,7 +94,7 @@ jobs:
                 wayland-protocols \
                 libva-dev \
                 libfontconfig1-dev \
-                liblua5.2-dev \
+                liblua5.1-dev \
                 texinfo
 
               echo "=================================================="
