@@ -93,6 +93,7 @@ jobs:
                 libwayland-dev \
                 wayland-protocols \
                 libva-dev \
+                libfontconfig1-dev \
                 texinfo
 
               echo "=================================================="
