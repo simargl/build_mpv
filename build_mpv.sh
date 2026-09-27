@@ -103,7 +103,7 @@ https://ftp.gnu.org/gnu/libcdio/libcdio-paranoia-10.2+0.94+2.tar.gz
 https://download.videolan.org/pub/videolan/libdvdcss/1.4.2/libdvdcss-1.4.2.tar.bz2
 https://download.videolan.org/pub/videolan/libdvdread/6.0.0/libdvdread-6.0.0.tar.bz2
 https://download.videolan.org/pub/videolan/libdvdnav/6.0.0/libdvdnav-6.0.0.tar.bz2
-https://downloads.sourceforge.net/luajit/LuaJIT-2.0.5.tar.gz
+https://macports-distfiles.mirrorservice.org/luajit/LuaJIT-2.0.5.tar.gz
 https://archive.debian.org/debian/pool/main/e/enca/enca_1.19.orig.tar.gz
 https://dri.freedesktop.org/libdrm/libdrm-2.4.89.tar.bz2
 https://downloads.videolan.org/testing/contrib/dav1d/dav1d-0.7.1.tar.xz
