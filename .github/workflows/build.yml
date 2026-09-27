@@ -14,13 +14,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install SquashFS tools
+      - name: Install host tools
         shell: bash
         run: |
           set -euxo pipefail
 
           sudo apt-get update
-          sudo apt-get install -y squashfs-tools
+          sudo apt-get install -y \
+            squashfs-tools \
+            wget
 
       - name: Download fs-slackware.sb
         shell: bash
@@ -33,61 +35,79 @@ jobs:
 
           ls -lh fs-slackware.sb
 
-      - name: Extract Slackware filesystem
+      - name: Extract fs-slackware.sb
         shell: bash
         run: |
           set -euxo pipefail
 
-          rm -rf fs-root
-          unsquashfs -d fs-root fs-slackware.sb
+          sudo rm -rf fs-root
+
+          # IMPORTANT:
+          # unsquashfs must run as root so it can recreate
+          # /dev/null, /dev/random, etc.
+          sudo unsquashfs -d fs-root fs-slackware.sb
 
           echo "=================================================="
           echo " Slackware filesystem"
           echo "=================================================="
 
-          cat fs-root/etc/slackware-version || true
+          sudo cat fs-root/etc/slackware-version || true
 
-      - name: Build mpv in Slackware filesystem
+          echo
+          echo "Checking device nodes..."
+
+          sudo ls -l fs-root/dev/null
+          sudo ls -l fs-root/dev/random
+
+      - name: Prepare chroot
         shell: bash
         run: |
           set -euxo pipefail
 
-          mkdir -p output
+          sudo mkdir -p \
+            fs-root/github-workspace \
+            fs-root/output
 
-          # Give the extracted Slackware filesystem access to the
-          # GitHub workspace and required virtual filesystems.
-          sudo mount --bind "$GITHUB_WORKSPACE" \
+          # Source tree
+          sudo mount --bind \
+            "$GITHUB_WORKSPACE" \
             "$GITHUB_WORKSPACE/fs-root/github-workspace"
 
-          sudo mount -t proc proc \
-            "$GITHUB_WORKSPACE/fs-root/proc"
-
-          sudo mount --rbind /sys \
-            "$GITHUB_WORKSPACE/fs-root/sys"
-
-          sudo mount --make-rslave \
-            "$GITHUB_WORKSPACE/fs-root/sys"
-
-          sudo mount --rbind /dev \
-            "$GITHUB_WORKSPACE/fs-root/dev"
-
-          sudo mount --make-rslave \
-            "$GITHUB_WORKSPACE/fs-root/dev"
-
-          # DNS/network access for wget/curl.
-          sudo cp -L /etc/resolv.conf \
-            "$GITHUB_WORKSPACE/fs-root/etc/resolv.conf"
-
-          # Make /output available inside the chroot.
-          sudo mkdir -p "$GITHUB_WORKSPACE/fs-root/output"
-
+          # Output directory
           sudo mount --bind \
             "$GITHUB_WORKSPACE/output" \
             "$GITHUB_WORKSPACE/fs-root/output"
 
-          echo "=================================================="
-          echo " Entering fs-slackware.sb"
-          echo "=================================================="
+          # proc
+          sudo mount -t proc \
+            proc \
+            "$GITHUB_WORKSPACE/fs-root/proc"
+
+          # sys
+          sudo mount --rbind \
+            /sys \
+            "$GITHUB_WORKSPACE/fs-root/sys"
+
+          sudo mount --make-rslave \
+            "$GITHUB_WORKSPACE/fs-root/sys"
+
+          # dev
+          sudo mount --rbind \
+            /dev \
+            "$GITHUB_WORKSPACE/fs-root/dev"
+
+          sudo mount --make-rslave \
+            "$GITHUB_WORKSPACE/fs-root/dev"
+
+          # DNS
+          sudo cp -L \
+            /etc/resolv.conf \
+            "$GITHUB_WORKSPACE/fs-root/etc/resolv.conf"
+
+      - name: Build mpv inside fs-slackware
+        shell: bash
+        run: |
+          set -euxo pipefail
 
           sudo chroot "$GITHUB_WORKSPACE/fs-root" \
             /bin/bash -euxo pipefail -c '
@@ -101,30 +121,36 @@ jobs:
               cd /github-workspace
 
               echo "=================================================="
-              echo " Slackware"
+              echo " Slackware build environment"
               echo "=================================================="
 
               cat /etc/slackware-version || true
               uname -a
 
+              echo
               echo "=================================================="
-              echo " Build tools"
+              echo " Toolchain"
               echo "=================================================="
 
               command -v gcc
               command -v g++
               command -v make
+              command -v ar
+              command -v ranlib
+              command -v strip
+              command -v pkg-config
               command -v python3
               command -v wget
               command -v tar
-              command -v pkg-config
 
               gcc --version
               make --version
               python3 --version
+              pkg-config --version
 
+              echo
               echo "=================================================="
-              echo " Optional build tools"
+              echo " Optional tools"
               echo "=================================================="
 
               meson --version || true
@@ -132,7 +158,10 @@ jobs:
               nasm -version || true
               yasm --version || true
               cmake --version || true
+              autoconf --version | head -n 1 || true
+              automake --version | head -n 1 || true
 
+              echo
               echo "=================================================="
               echo " Building mpv"
               echo "=================================================="
@@ -141,14 +170,17 @@ jobs:
 
               ./build_mpv.sh
 
+              echo
               echo "=================================================="
-              echo " Build finished"
+              echo " Build completed"
               echo "=================================================="
 
+              test -x /tmp/mpv-build/pkg/bin/mpv
               test -f /tmp/mpv-build/mpv.sb
 
               ls -lh /tmp/mpv-build/mpv.sb
 
+              echo
               echo "=================================================="
               echo " Copying mpv.sb"
               echo "=================================================="
