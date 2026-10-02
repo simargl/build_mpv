@@ -113,7 +113,7 @@ https://download.videolan.org/pub/videolan/libdvdnav/6.0.0/libdvdnav-6.0.0.tar.b
 https://macports-distfiles.mirrorservice.org/luajit/LuaJIT-2.0.5.tar.gz
 https://archive.debian.org/debian/pool/main/e/enca/enca_1.19.orig.tar.gz
 https://archive.debian.org/debian/pool/main/libp/libpciaccess/libpciaccess_0.14.orig.tar.gz
-https://dri.freedesktop.org/libdrm/libdrm-2.4.89.tar.bz2
+https://dri.freedesktop.org/libdrm/libdrm-2.4.110.tar.xz
 https://github.com/openssl/openssl/releases/download/OpenSSL_1_0_2d/openssl-1.0.2d.tar.gz
 https://downloads.videolan.org/testing/contrib/dav1d/dav1d-0.7.1.tar.xz
 https://ffmpeg.org/releases/ffmpeg-4.4.8.tar.xz
@@ -373,12 +373,12 @@ fi
     build_auto enca_1.19.orig.tar.gz "$BUILD/enca-1.19"
 
 if [ ! -f "$PKG/lib/libdrm.a" ]; then
-    echo "==> Building libdrm 2.4.89"
+    echo "==> Building libdrm 2.4.110"
 
-    rm -rf "$BUILD/libdrm-2.4.89"
-    tar -xf "$SRC/libdrm-2.4.89.tar.bz2" -C "$BUILD"
+    rm -rf "$BUILD/libdrm-2.4.110"
+    tar -xf "$SRC/libdrm-2.4.110.tar.xz" -C "$BUILD"
 
-    cd "$BUILD/libdrm-2.4.89"
+    cd "$BUILD/libdrm-2.4.110"
 
     if [ ! -f configure ]; then
         autoreconf -fiv
