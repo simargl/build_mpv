@@ -495,7 +495,6 @@ if [ ! -f "$PKG/lib/libavformat.a" ]; then
         --enable-libtheora \
         --enable-libx264 \
         --enable-libx265 \
-        --enable-libwavpack \
         --enable-encoders \
         --ignore-tests
 
