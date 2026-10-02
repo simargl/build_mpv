@@ -2,7 +2,7 @@
 # 
 # Author: simargl <https://github.com/simargl>
 # License: GPL v3
-# Static mpv 0.32.0 + FFmpeg 4.4.8 + dav1d AV1 + yt-dlp
+# Static mpv 0.35.1 + FFmpeg 4.4.8 + dav1d AV1 + yt-dlp
 
 set -e
 
@@ -117,7 +117,7 @@ https://dri.freedesktop.org/libdrm/libdrm-2.4.89.tar.bz2
 https://github.com/openssl/openssl/releases/download/OpenSSL_1_0_2d/openssl-1.0.2d.tar.gz
 https://downloads.videolan.org/testing/contrib/dav1d/dav1d-0.7.1.tar.xz
 https://ffmpeg.org/releases/ffmpeg-4.4.8.tar.xz
-https://deb.debian.org/debian/pool/main/m/mpv/mpv_0.32.0.orig.tar.gz
+https://deb.debian.org/debian/pool/main/m/mpv/mpv_0.35.1.orig.tar.gz
 "
 
 for url in $URLS; do
@@ -511,20 +511,20 @@ fi
 find "$PKG/lib" -type f \( -name '*.so' -o -name '*.so.*' \) -delete 2>/dev/null || true
 
 # ----------------------------------------------------------------------
-# mpv 0.32.0
+# mpv 0.35.1
 # ----------------------------------------------------------------------
 
 if [ ! -x "$PKG/bin/mpv" ]; then
-    echo "==> Building mpv 0.32.0"
+    echo "==> Building mpv 0.35.1"
 
-    rm -rf "$BUILD/mpv-0.32.0"
-    tar -xf "$SRC/mpv_0.32.0.orig.tar.gz" -C "$BUILD"
+    rm -rf "$BUILD/mpv-0.35.1"
+    tar -xf "$SRC/mpv_0.35.1.orig.tar.gz" -C "$BUILD"
 
-    cd "$BUILD/mpv-0.32.0"
+    cd "$BUILD/mpv-0.35.1"
 
     if [ ! -f waf ]; then
         wget -q --show-progress \
-            https://waf.io/waf-2.0.20 -O waf
+            https://waf.io/waf-2.0.25 -O waf
         chmod 755 waf
     fi
 
