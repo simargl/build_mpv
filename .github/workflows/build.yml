@@ -155,3 +155,31 @@ jobs:
           name: mpv-static
           path: output/mpv.sb
           if-no-files-found: error
+
+      - name: Remove previous releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_PREFIX="${{ github.event.repository.name }}-0.1.0-"
+
+          gh release list \
+            --limit 1000 \
+            --json tagName \
+            --jq ".[] | select(.tagName | startswith(\"$TAG_PREFIX\")) | .tagName" \
+          | while read -r tag; do
+              echo "Deleting old release: $tag"
+              gh release delete "$tag" --yes --cleanup-tag
+            done
+
+      - name: Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ github.event.repository.name }}-0.1.0-${{ github.run_number }}"
+
+          echo "Creating release: $TAG"
+
+          gh release create "$TAG" \
+            "output/mpv.sb" \
+            --title "$TAG" \
+            --generate-notes
