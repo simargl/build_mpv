@@ -572,11 +572,9 @@ mkdir -p \
     "$ROOTFS/usr/share/applications"
 
 cp "$PKG/bin/mpv" "$ROOTFS/usr/bin/mpv"
-cp "$PKG/bin/ffmpeg" "$ROOTFS/usr/bin/ffmpeg"
 install -m755 "$SRC/yt-dlp" "$ROOTFS/usr/bin/yt-dlp"
 
 strip "$ROOTFS/usr/bin/mpv" || true
-strip "$ROOTFS/usr/bin/ffmpeg" || true
 
 if [ -f "$PKG/share/applications/mpv.desktop" ]; then
     cp "$PKG/share/applications/mpv.desktop" \
@@ -594,12 +592,6 @@ echo "=================================================="
 
 echo "mpv:"
 "$ROOTFS/usr/bin/mpv" --version | head -n 5 || true
-
-test -x "$PKG/bin/ffmpeg"
-
-echo
-echo "ffmpeg:"
-"$ROOTFS/usr/bin/ffmpeg" -version | head -n 3 || true
 
 echo
 echo "Static libraries:"
