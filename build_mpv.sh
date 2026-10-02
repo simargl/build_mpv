@@ -2,7 +2,7 @@
 # 
 # Author: simargl <https://github.com/simargl>
 # License: GPL v3
-# Static mpv 0.32.0 + FFmpeg 4.3 + dav1d AV1 + yt-dlp
+# Static mpv 0.32.0 + FFmpeg 4.4.8 + dav1d AV1 + yt-dlp
 
 set -e
 
@@ -116,7 +116,7 @@ https://archive.debian.org/debian/pool/main/libp/libpciaccess/libpciaccess_0.14.
 https://dri.freedesktop.org/libdrm/libdrm-2.4.89.tar.bz2
 https://github.com/openssl/openssl/releases/download/OpenSSL_1_0_2d/openssl-1.0.2d.tar.gz
 https://downloads.videolan.org/testing/contrib/dav1d/dav1d-0.7.1.tar.xz
-https://ffmpeg.org/releases/ffmpeg-4.3.tar.xz
+https://ffmpeg.org/releases/ffmpeg-4.4.8.tar.xz
 https://deb.debian.org/debian/pool/main/m/mpv/mpv_0.32.0.orig.tar.gz
 "
 
@@ -445,16 +445,16 @@ fi
 
 
 # ----------------------------------------------------------------------
-# FFmpeg 4.3
+# FFmpeg 4.4.8
 # ----------------------------------------------------------------------
 
 if [ ! -f "$PKG/lib/libavformat.a" ]; then
-    echo "==> Building FFmpeg 4.3"
+    echo "==> Building FFmpeg 4.4.8"
 
-    rm -rf "$BUILD/ffmpeg-4.3"
-    tar -xf "$SRC/ffmpeg-4.3.tar.xz" -C "$BUILD"
+    rm -rf "$BUILD/ffmpeg-4.4.8"
+    tar -xf "$SRC/ffmpeg-4.4.8.tar.xz" -C "$BUILD"
 
-    cd "$BUILD/ffmpeg-4.3"
+    cd "$BUILD/ffmpeg-4.4.8"
 
     ./configure \
         --prefix="$PKG" \
