@@ -81,6 +81,7 @@ build_cmake() {
 URLS="
 https://archive.debian.org/debian/pool/main/e/expat/expat_2.1.0.orig.tar.gz
 https://archive.debian.org/debian/pool/main/libp/libpng/libpng_1.2.50.orig.tar.xz
+https://download.savannah.gnu.org/releases/freetype/freetype-2.10.4.tar.xz
 https://ijg.org/files/jpegsrc.v9c.tar.gz
 https://www.tortall.net/projects/yasm/releases/yasm-1.3.0.tar.gz
 https://download.videolan.org/contrib/nasm/nasm-2.13.03.tar.gz
@@ -122,10 +123,6 @@ https://deb.debian.org/debian/pool/main/m/mpv/mpv_0.32.0.orig.tar.gz
 for url in $URLS; do
     download "$url"
 done
-
-# FreeType is needed by libass/FFmpeg.
-# Download separately because it was missing from the original script.
-download "https://download.savannah.gnu.org/releases/freetype/freetype-2.10.4.tar.xz"
 
 # ----------------------------------------------------------------------
 # Build tools
@@ -499,7 +496,7 @@ if [ ! -f "$PKG/lib/libavformat.a" ]; then
         --enable-libx264 \
         --enable-libx265 \
         --enable-libwavpack \
-        --disable-encoders \
+        --enable-encoders \
         --ignore-tests
 
     make -j"$JOBS"
