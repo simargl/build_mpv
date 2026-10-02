@@ -380,18 +380,19 @@ if [ ! -f "$PKG/lib/libdrm.a" ]; then
 
     cd "$BUILD/libdrm-2.4.110"
 
-    if [ ! -f configure ]; then
-        autoreconf -fiv
-    fi
+    rm -rf build
 
-    CFLAGS="-O2 -fPIC" \
-    ./configure \
+    meson setup build \
         --prefix="$PKG" \
-        --disable-shared \
-        --enable-static
+        --libdir=lib \
+        --default-library=static \
+        -Dudev=false \
+        -Dtests=false \
+        -Dvalgrind=false \
+        -Dcairo-tests=false
 
-    make -j"$JOBS"
-    make install
+    meson compile -C build
+    meson install -C build
 
     cd "$SRC"
 fi
