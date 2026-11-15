@@ -31,7 +31,7 @@ download() {
     fi
 
     echo "==> Downloading $(basename "$url")"
-    wget -O "$file" "$url"
+    wget -O "$file" "$url" --no-check-certificate
 
     if [ ! -s "$file" ]; then
         echo "ERROR: download failed: $url"
