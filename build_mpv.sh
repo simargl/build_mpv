@@ -531,11 +531,7 @@ if [ ! -x "$PKG/bin/mpv" ]; then
     PATH="$PKG/bin:$PATH" \
     python3 ./waf configure \
         --prefix="$PKG" \
-        --disable-manpage-build \
-        --enable-x11 \
-        --enable-gl \
-        --enable-gl-x11 \
-        --disable-wayland
+        --disable-manpage-build
 
     PKG_CONFIG_PATH="$PKG_CONFIG_PATH" \
     PATH="$PKG/bin:$PATH" \
