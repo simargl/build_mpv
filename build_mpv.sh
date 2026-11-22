@@ -2,7 +2,7 @@
 # 
 # Author: simargl <https://github.com/simargl>
 # License: GPL v3
-# Static mpv 0.35.1 + FFmpeg 4.4.8 + dav1d AV1 + yt-dlp
+# Static mpv 0.32.0 + FFmpeg 4.4.8 + dav1d AV1 + yt-dlp
 
 set -e
 
@@ -113,11 +113,11 @@ https://download.videolan.org/pub/videolan/libdvdnav/6.0.0/libdvdnav-6.0.0.tar.b
 https://macports-distfiles.mirrorservice.org/luajit/LuaJIT-2.0.5.tar.gz
 https://archive.debian.org/debian/pool/main/e/enca/enca_1.19.orig.tar.gz
 https://archive.debian.org/debian/pool/main/libp/libpciaccess/libpciaccess_0.14.orig.tar.gz
-https://dri.freedesktop.org/libdrm/libdrm-2.4.100.tar.bz2
-https://github.com/openssl/openssl/releases/download/OpenSSL_1_0_2u/openssl-1.0.2u.tar.gz
+https://dri.freedesktop.org/libdrm/libdrm-2.4.89.tar.bz2
+https://github.com/openssl/openssl/releases/download/OpenSSL_1_0_2d/openssl-1.0.2d.tar.gz
 https://downloads.videolan.org/testing/contrib/dav1d/dav1d-0.7.1.tar.xz
 https://ffmpeg.org/releases/ffmpeg-4.4.8.tar.xz
-https://deb.debian.org/debian/pool/main/m/mpv/mpv_0.35.1.orig.tar.gz
+https://deb.debian.org/debian/pool/main/m/mpv/mpv_0.32.0.orig.tar.gz
 "
 
 for url in $URLS; do
@@ -373,12 +373,12 @@ fi
     build_auto enca_1.19.orig.tar.gz "$BUILD/enca-1.19"
 
 if [ ! -f "$PKG/lib/libdrm.a" ]; then
-    echo "==> Building libdrm 2.4.100"
+    echo "==> Building libdrm 2.4.89"
 
-    rm -rf "$BUILD/libdrm-2.4.100"
-    tar -xf "$SRC/libdrm-2.4.100.tar.bz2" -C "$BUILD"
+    rm -rf "$BUILD/libdrm-2.4.89"
+    tar -xf "$SRC/libdrm-2.4.89.tar.bz2" -C "$BUILD"
 
-    cd "$BUILD/libdrm-2.4.100"
+    cd "$BUILD/libdrm-2.4.89"
 
     if [ ! -f configure ]; then
         autoreconf -fiv
@@ -401,13 +401,14 @@ fi
 # ----------------------------------------------------------------------
 
 if [ ! -f "$PKG/lib/libssl.a" ]; then
-    rm -rf "$BUILD/openssl-1.0.2u"
-    tar -xf "$SRC/openssl-1.0.2u.tar.gz" -C "$BUILD"
-    cd "$BUILD/openssl-1.0.2u"
+    rm -rf "$BUILD/openssl-1.0.2d"
+    tar -xf "$SRC/openssl-1.0.2d.tar.gz" -C "$BUILD"
+    cd "$BUILD/openssl-1.0.2d"
     ./config \
         --prefix="$PKG" \
         no-shared \
-        no-ssl3 
+        no-ssl3 \
+        no-comp
     make -j"$JOBS"
     make install_sw
     cd "$SRC"
@@ -510,20 +511,20 @@ fi
 find "$PKG/lib" -type f \( -name '*.so' -o -name '*.so.*' \) -delete 2>/dev/null || true
 
 # ----------------------------------------------------------------------
-# mpv 0.35.1
+# mpv 0.32.0
 # ----------------------------------------------------------------------
 
 if [ ! -x "$PKG/bin/mpv" ]; then
-    echo "==> Building mpv 0.35.1"
+    echo "==> Building mpv 0.32.0"
 
-    rm -rf "$BUILD/mpv-0.35.1"
-    tar -xf "$SRC/mpv_0.35.1.orig.tar.gz" -C "$BUILD"
+    rm -rf "$BUILD/mpv-0.32.0"
+    tar -xf "$SRC/mpv_0.32.0.orig.tar.gz" -C "$BUILD"
 
-    cd "$BUILD/mpv-0.35.1"
+    cd "$BUILD/mpv-0.32.0"
 
     if [ ! -f waf ]; then
         wget -q --show-progress \
-            https://waf.io/waf-2.0.24 -O waf
+            https://waf.io/waf-2.0.20 -O waf
         chmod 755 waf
     fi
 
