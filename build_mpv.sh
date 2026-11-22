@@ -407,8 +407,7 @@ if [ ! -f "$PKG/lib/libssl.a" ]; then
     ./config \
         --prefix="$PKG" \
         no-shared \
-        no-ssl3 \
-        no-comp
+        no-ssl3 
     make -j"$JOBS"
     make install_sw
     cd "$SRC"
